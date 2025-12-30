@@ -13,7 +13,6 @@ Usage:
 from pathlib import Path
 
 
-# Get the project root directory (parent of src)
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 RESULTS_DIR = PROJECT_ROOT / "results"
@@ -35,7 +34,6 @@ def convert_png_to_pdf_optimized():
         print("Error: Pillow is required. Install with: pip install Pillow")
         return []
     
-    # Ensure directories exist
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     
@@ -62,10 +60,8 @@ def convert_png_to_pdf_optimized():
         report_pdf_path = REPORT_FIGURES_DIR / pdf_filename
         
         try:
-            # Load PNG image
             img = Image.open(png_path)
             
-            # Convert RGBA to RGB with white background (PDF doesn't handle transparency well)
             if img.mode == 'RGBA':
                 background = Image.new('RGB', img.size, (255, 255, 255))
                 background.paste(img, mask=img.split()[3])
@@ -73,9 +69,6 @@ def convert_png_to_pdf_optimized():
             elif img.mode != 'RGB':
                 img = img.convert('RGB')
             
-            # Resize to reduce file size while maintaining good quality
-            # Original is likely very high res (300 DPI at 14x12 inches = 4200x3600)
-            # For LaTeX at 0.85\textwidth, we need about 1500-2000 px width
             max_width = 2000
             if img.width > max_width:
                 ratio = max_width / img.width
@@ -89,8 +82,8 @@ def convert_png_to_pdf_optimized():
             img.save(report_pdf_path, 'PDF', resolution=150, optimize=True)
             
             # Calculate sizes
-            png_size = png_path.stat().st_size / (1024 * 1024)  # MB
-            pdf_size = pdf_path.stat().st_size / (1024 * 1024)  # MB
+            png_size = png_path.stat().st_size / (1024 * 1024)
+            pdf_size = pdf_path.stat().st_size / (1024 * 1024)
             reduction = (1 - pdf_size / png_size) * 100
             
             total_png_size += png_size

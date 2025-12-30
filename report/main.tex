@@ -1,304 +1,447 @@
-\documentclass{article}
+% =================================================================
+% INCOSE Conference LaTeX Template V1.2 (Release Date: November 4th, 2025)
+% Copyright (c) 2025 INCOSE
+% 
+% This template is provided for use in preparing manuscripts for
+% INCOSE conferences. You may use, modify, and 
+% distribute this template for academic and professional purposes.
+% 
+% This template is provided "as is" without warranty of any kind.
+% The author(s) disclaim all warranties, express or implied,
+% including but not limited to warranties of merchantability and
+% fitness for a particular purpose.
 
-% Language setting
-\usepackage[english]{babel}
+% =================================================================
 
-% Set page size and margins
-\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+\documentclass[11pt,letterpaper]{article} % Remove this line if using A4 size.
+%\documentclass[11pt,a4]{article} % A4 is also accepted and is typically used for non-US submissions.
 
-% Useful packages
-\usepackage{amsmath}
-\usepackage{amssymb}
+% ---------- Core layout ----------
+\usepackage[
+  letterpaper,
+  left=0.6in,right=0.6in,top=0.6in,bottom=0.6in,
+  headheight=85pt,headsep=-45pt
+]{geometry}
+\raggedbottom
 \usepackage{graphicx}
-\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\graphicspath{{./}{figures/}}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{tikz}
+% \usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+% Useful packages
+\usepackage{amssymb}
+% \usepackage[colorlinks=true, allcolors=blue]{hyperref}
 
-\title{Optimization of Security Command Center Locations and Resource Allocation of Saudi Aramco Site Monitoring}
-\author{Operations Research Capstone Project by Nur Ahmad Khatim}
+
+% ---------- Captions & float spacing ----------
+\usepackage{caption}
+\captionsetup{
+  font={sf,bf,footnotesize},
+  labelfont={sf,bf,footnotesize},
+  justification=centering,
+  labelsep=period,
+  hypcap=false
+}
+\setlength{\textfloatsep}{8pt}
+\setlength{\floatsep}{6pt}
+\setlength{\intextsep}{8pt}
+\setlength{\abovecaptionskip}{12pt}
+\setlength{\belowcaptionskip}{1pt}
+
+% ---------- Tables / lists ----------
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\setlist{nosep}
+\usepackage[table]{xcolor}
+\definecolor{tableheader}{HTML}{D9D9D9}
+\newcolumntype{P}[1]{>{\sffamily\centering\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\sffamily\centering\arraybackslash}X}
+\newcolumntype{A}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{M}[1]{>{\raggedright\arraybackslash}m{#1}}
+
+% ---------- Fonts ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{PTSerif}
+\usepackage[scaled]{helvet}
+\renewcommand{\sfdefault}{phv}
+\newcommand{\headingfont}{\sffamily}
+
+% ---------- Headings ----------
+\usepackage{titlesec}
+\setcounter{secnumdepth}{0}
+
+% Heading 1
+\titleformat{\section}
+  {\headingfont\bfseries\raggedright\fontsize{18pt}{18pt}\selectfont}{}{0.75em}{}
+% Heading 2
+\titleformat{\subsection}
+  {\headingfont\bfseries\raggedright\fontsize{15pt}{16pt}\selectfont}{}{0.75em}{}
+% Heading 3
+\titleformat{\subsubsection}
+  {\headingfont\bfseries\raggedright\fontsize{12pt}{14pt}\selectfont}{}{0.75em}{}
+
+% Heading spacing
+\titlespacing*{\section}{0pt}{7pt}{6pt}
+\titlespacing*{\subsection}{0pt}{7pt}{6pt}
+\titlespacing*{\subsubsection}{0pt}{7pt}{6pt}
+
+\newcommand{\miniheading}[1]{%
+  \par\noindent{\headingfont\bfseries\fontsize{12pt}{14pt}\selectfont #1}\par\vspace{4pt}%
+}
+
+% ---------- Paragraphing ----------
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 1pt minus 1pt}
+
+% ---------- Page numbers ----------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhfoffset[R]{18pt}
+\setlength{\footskip}{18pt}
+\fancyfoot[R]{\sffamily\bfseries\footnotesize \thepage}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% INCOSE logo
+\fancypagestyle{firstpage}{
+  \fancyhf{}
+  \fancyhfoffset[R]{18pt}
+  \fancyhead[R]{%
+    \smash{\raisebox{0pt}[0pt][0pt]{
+      \begingroup\setlength{\fboxsep}{20pt}
+        \colorbox{white}{\includegraphics[height=0.6in]{template-images/incose-logo.jpg}}%
+      \endgroup
+    }}
+  }
+  \fancyfoot[R]{\sffamily\bfseries\footnotesize \thepage}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0pt}
+}
+% ---------- Title Formatting ----------
+\makeatletter
+\@ifundefined{theauthor}{}{\let\theauthor\relax}
+\makeatother
+\usepackage{titling}
+\pretitle{\headingfont\bfseries\fontsize{24pt}{26pt}\selectfont\raggedright}
+\posttitle{\par\vspace{-.3in}}
+\preauthor{}\postauthor{}
+\author{\mbox{}}
 \date{}
+\setlength{\droptitle}{-3.2\baselineskip}
+
+% ---------- Author cards ----------
+\newcommand{\authorcard}[5]{%
+  {\headingfont\bfseries\fontsize{12pt}{14pt}\selectfont #1}\par
+  {\headingfont\bfseries\fontsize{12pt}{14pt}\selectfont #2}\par
+  {\headingfont\bfseries\fontsize{12pt}{14pt}\selectfont #3}\par
+  {\headingfont\bfseries\fontsize{12pt}{14pt}\selectfont #4}\par
+  {\headingfont\bfseries\fontsize{12pt}{14pt}\selectfont #5}\par
+}
+
+% ---------- Biography photo placeholder and entry ----------
+
+\makeatletter
+\newcommand{\authorpic}[1]{%
+    \includegraphics[width=0.6in,height=0.6in,keepaspectratio,clip]{#1}%
+}
+\makeatother
+
+\newcommand{\authorbioentry}[3]{%
+  \noindent\begin{tabular}{@{}m{0.5in} M{\dimexpr\columnwidth-0.5in\relax}@{}}
+    \authorpic{#1} & \textbf{#2}\par #3
+  \end{tabular}\par\medskip
+}
+
+% ---------- Safe figure include ----------
+\makeatletter
+\newcommand{\colfig}[2][]{%
+  \IfFileExists{#2}{\includegraphics[width=\linewidth,#1]{#2}}{%
+    \fbox{\parbox[b][1.5in][c]{\linewidth}{\centering \textit{Missing figure: }#2}}}%
+}
+\makeatother
+
+% ---------- References: APA via biblatex/biber ----------
+\let\theauthor\relax
+\usepackage{csquotes}
+\usepackage[style=apa,backend=biber]{biblatex}
+\addbibresource{references.bib}
+
+% ---------- Highlight callouts ----------
+\usepackage{changepage}
+\newenvironment{highlight}[1][0.25in]{%
+  \begin{adjustwidth}{#1}{#1}\itshape}{\end{adjustwidth}}
+
+% ---------- Two-column setup ----------
+\usepackage{multicol}
+\setlength{\columnsep}{18pt}
+
+% ---------- Hyperlinks ----------
+\usepackage[hidelinks]{hyperref}
+
+% =========================
+% ===== Title & Authors ===
+% =========================
+\title{Optimized Human-Robot Co-Dispatch \\ Planning for Petro-Site Surveillance \\ Systems under Varying Criticalities}
 
 \begin{document}
 \maketitle
+\thispagestyle{firstpage}
 
+% ---- Authors ----
+% ---- For the initial paper submission, do not include any author information. For the final paper submission, format author information as shown below. ------------------
+
+\noindent
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} A{0.32\textwidth} A{0.32\textwidth} A{0.32\textwidth}}
+  \authorcard{Nur Ahmad Khatim}{Institute Technology of Sepuluh Nopember}{Surabaya, Indonesia}{}{nurahmadkhatim@gmail.com} &
+  % \authorcard{Author Two}{Organization}{Street Address}{City, Province, Postal}{author.two@email.com} &
+  % \authorcard{Author Three}{Organization}{Street Address}{City, Province, Postal}{author.three@email.com} \\
+  % \multicolumn{3}{@{}c@{}}{\rule{0pt}{0.9\baselineskip}} \\[-0.2\baselineskip]
+  % \authorcard{Author Four}{Organization}{Street Address}{City, Province, Postal}{author.four@email.com} &
+  % \authorcard{Author Five}{Organization}{Street Address}{City, Province, Postal}{author.five@email.com} &
+  \authorcard{Yan Akhra Pratama}{Institute Technology of Sepuluh Nopember}{Surabaya, Indonesia}{}{pratamaakhra@gmail.com} &
+ \authorcard{Mansur M. Arief}{King Fahd University of Petroleum and Minerals}{Dhahran, Saudi Arabia}{}{mansur.arief@kfupm.edu.sa} \\
+\end{tabular*}
+% \addvspace{.75in}
+
+% ---- Two columns begin immediately after authors ----
+\begin{multicols*}{2}
+\raggedcolumns
+
+% ---- Copyright ----
+{\headingfont\bfseries\fontsize{8pt}{12pt}\selectfont
+Copyright~\textcopyright~ \the\year{} by the author(s). Permission granted to INCOSE to publish and use.}
+\\
+% =========================
+% ===== Abstract/Keywords =
+% =========================
+\phantomsection
+\miniheading{Abstract}
+This document presents instructions for preparing a manuscript for INCOSE conferences. Please note that your submission will not appear in proceedings unless it conforms exactly to the required format. Please proofread your submissions carefully for typographical, spelling, or grammatical errors. We strongly encourage you to use this document as a template for developing your own manuscript.
+
+\phantomsection
+\subsubsection{Keywords}
+Provide a few keywords, separated by commas.
+
+% =========================
+% ===== Main Content ======
+% =========================
 \section{Introduction}
-Saudi Aramco, officially the Saudi Arabian Oil Group, is a state-owned global energy and chemicals giant headquartered in Dhahran, Saudi Arabia. As the world’s largest oil producer, the company manages the planet’s most extensive hydrocarbon network and largest proven crude oil reserves. Since its full nationalization in 1980, Aramco has evolved into one of the most profitable corporations in history, with a modern focus on digital innovation and lower-carbon technologies.
 
-To protect its vast infrastructure while advancing the Saudi Vision 2030 objectives, Aramco is integrating automation into its core industrial security operations. Centralized command centers are being deployed at strategic locations to manage the distribution of security resources. These centers oversee a hybrid fleet of human personnel and robotic units, each governed by distinct Service Level Agreements (SLAs), such as critical time-to-arrive targets. To maximize efficiency, the company must evaluate the trade-offs between human adaptability, rapid, and consistent deployment of automated systems.
+The global petroleum infrastructure represents one of the most extensive and geographically dispersed critical infrastructure networks, with over 2.7 million miles of oil and gas pipelines traversing the United States alone, and similar dense networks spanning the Arabian Peninsula, the North Sea, and other major hydrocarbon basins (\cite{coburn2020oil, dietl2021global, klass2014transporting}). These networks exhibit a hierarchical topology characterized by high-criticality nodes (refineries, processing facilities, storage terminals, and compressor stations) interconnected by extensive linear assets of varying criticality. The protection of such infrastructure has emerged as a paramount concern for national security, economic stability, and environmental stewardship (\cite{pashchenko2024main, bajpai2007securing}), particularly as threat vectors have evolved to encompass both physical intrusion and sophisticated cyber-physical attacks (\cite{mohammed2022cybersecurity}).
 
-Ultimately, the strategic objective is to determine the optimal geographical locations for establishing these command centers among a set of candidate sites. This decision-making process must account for the fixed costs of facility construction alongside the variable costs of deploying human or robotic units, which are determined by the distance between the facility and specific demand sites. Furthermore, the model must respect the finite capacity of each command center, which is constrained by the maximum number of human personnel and robotic units it can host. The final goal is to minimize the total cost, encompassing both infrastructure investment and operational deployment while ensuring all site-specific security demands and response-time SLAs are fully satisfied.
+Saudi Aramco, the world's largest integrated energy company managing the planet's most extensive hydrocarbon network, exemplifies the operational complexity inherent in securing petroleum infrastructure at scale (\cite{alsuwailem2022integrated}). The company's Dhahran headquarters and its distributed operational assets span a spectrum of criticality levels, from Tier-1 facilities requiring continuous 24/7 active monitoring to geographically extensive pipeline corridors where periodic patrol suffices. This heterogeneous demand landscape necessitates a correspondingly differentiated security response capability---one that balances the rapidity and precision of autonomous robotic systems with the contextual judgment and ethical decision-making capacity of human operators (\cite{zhang2021safety, al2022managing}).
 
-\section{Problem Description}
-\subsection{Objective:}
-The primary objective is to minimize the total cost required to establish and operate security command centers. The total cost consists of:
+The advent of Fourth Industrial Revolution (4IR) technologies has catalyzed a paradigm shift in industrial security operations. Unmanned aerial vehicles (UAVs), autonomous ground vehicles (AGVs), and integrated sensor networks now offer capabilities that complement and extend human surveillance capacity. However, the integration of these heterogeneous assets into a coherent systems presents a complex systems engineering challenge. The DARPA challenge showcased how multi-robot systems deployed without being cognizant of their capabilities could crash into one another and lead to mission failures (\cite{agha2021nebula}). The problem is not merely technological; it is fundamentally one of resource allocation, facility location, service level optimization, and human-machine teaming under operational constraints.
+
+Traditionally, the problem of facility services coverage is modeled  as covering problem in the operations research literature. The classical models traditionally deal with minimizing facility costs while covering all the demand points, assuming uncapacitated server agents, or maximizing the demands served given available servers (\cite{li2011covering}). The former problem is coined the set covering problem (\cite{toregas1971location}) while the latter is called maximal covering problem (\cite{megiddo1983maximum}). Extensions to these models have been proposed to cover various service and demand characterizations (see \cite{li2011covering} for a review). The main assumption that we relax in this paper is the incorporation of the deployment of hybrid human-robot security teams across petroleum infrastructure with varying criticality levels. We formulate the problem as a Capacitated Facility Location Problem (CFLP) variant that explicitly incorporates: (i) tiered infrastructure criticality with differentiated service level agreements (SLAs); (ii) human-robot co-dispatch with varying supervision ratios reflecting technological maturity and human-in-the-loop requirements; (iii) set covering constraints ensuring redundant surveillance coverage under common petroleum site settings; and (iv) capacity constraints on command center resources. The objective is to minimize total deployment cost while satisfying all coverage requirements, response time constraints, and human-in-the-loop supervision mandates.
+
+The contributions of this work are fourfold. First, we develop a novel mathematical formulation that bridges the classical facility location literature with the emerging domain of human-robot teaming for critical infrastructure protection. Second, we explicitly model the hierarchical criticality structure of petroleum infrastructure, distinguishing between high-value concentrated assets (refineries, terminals) requiring stringent SLAs and distributed linear assets (pipelines) with relaxed but spatially extensive coverage requirements. Third, we incorporate human supervision constraints that reflect the ethical and regulatory requirements for autonomous system deployment in security-critical applications. Fourth, we demonstrate the model's applicability through a case study of from Dhahran district with dummy data points, providing actionable deployment recommendations across multiple technology maturity scenarios.
+
+% The remainder of this paper is organized as follows. Section 2 reviews the relevant literature spanning critical infrastructure protection, facility location optimization, and human-robot collaboration. Section 3 presents the formal problem description and mathematical formulation. Section 4 details the solution methodology combining exact optimization with scalable heuristics. Section 5 describes the case study data and scenario design. Section 6 presents computational results and sensitivity analyses. Section 7 concludes with implications for practice and directions for future research.
+
+\section{Literature Review}
+
+This paper bridges three research domains: critical infrastructure protection (CIP) for petroleum facilities, facility location problems in operations research, and human-robot collaboration for surveillance tasks.
+
+\subsection{Critical Infrastructure Protection}
+
+Petroleum infrastructure protection has received sustained attention following heightened post-2001 security concerns. The TSA Pipeline Security Guidelines and DHS frameworks classify facilities based on criticality---considering target viability, importance to energy supply, and weaponization potential (\cite{bajpai2007securing, pashchenko2024main}). Unlike discrete facilities, pipeline networks exhibit continuous spatial extent with critical nodes distributed across remote terrain. Church and Scaparra's $r$-interdiction models identify infrastructure elements whose loss maximally degrades system performance, establishing that strategic fortification must account for attacker-defender dynamics (\cite{church2004identifying, scaparra2008bilevel}).
+
+Contemporary petroleum security increasingly leverages autonomous systems. Saudi Aramco has deployed drones for pipeline surveillance and perimeter monitoring, reducing inspection times by up to 90\% at facilities like the Uthmaniyah Gas Plant (\cite{alwalaie2021aramco}). However, the literature lacks optimization frameworks for strategic placement of command centers from which hybrid human-robot teams are dispatched.
+
+\subsection{Facility Location Problems}
+
+The facility location problem (FLP) originates from Weber's industrial location theory and Hakimi's work on optimal switching center placement (\cite{hakimi1964optimum, hakimi1965optimum}). The Set Covering Location Problem (SCLP) seeks minimum facilities ensuring all demand points are within a service threshold (\cite{toregas1971location}), while the Maximal Covering Location Problem (MCLP) maximizes covered demand given fixed facilities (\cite{church1974maximal}). The Capacitated Facility Location Problem (CFLP) adds constraints on demand served per facility (\cite{daskin2013network}).
+
+Extensions include backup coverage concepts (\cite{hogan1986backup}) and bilevel interdiction-fortification models (\cite{scaparra2008bilevel}). The emergency medical services (EMS) literature has developed tiered response systems where different vehicle types serve different call priorities (\cite{farahani2012covering, jayarathna2024covering}), which provides conceptual parallels to human-robot teaming. However, integration of heterogeneous resource types with varying capabilities and supervision requirements remains unaddressed.
+
+\subsection{Human-Robot Collaboration}
+
+Autonomous security robots now offer 24/7 patrolling with human detection and thermal imaging, deployed across critical infrastructure in over 15 countries (\cite{adams2024security}). Despite these capabilities, ethical and regulatory considerations require human oversight for escalation decisions, manifesting as supervision ratio constraints (\cite{chen2011supervisory}).
+
+The human-robot teaming (HRT) literature identifies operator multitasking, trust calibration, and cognitive workload as key factors affecting collaboration (\cite{chen2011supervisory, haring2021understanding}). For petroleum applications, UAVs with YOLO-based detection enable real-time defect identification (\cite{alwalaie2021aramco}). Operations research has addressed human-robot task allocation in warehouse environments (\cite{boysen2019warehouse}), but the strategic facility location problem for security teams remains unexamined.
+
+\subsection{Research Gaps and Contributions}
+
+Three gaps emerge at the intersection of these domains. First, CIP literature lacks optimization models accounting for hybrid human-robot workforces. Second, FLP literature has not incorporated human-robot operational constraints including supervision ratios and differential efficiency rates. Third, HRT literature focuses on operational coordination with limited attention to strategic facility location.
+
+This paper addresses these gaps through an integrated formulation combining: (i) tiered criticality distinguishing high-value concentrated facilities from distributed assets; (ii) capacitated facility location with SLA constraints; (iii) explicit human-robot modeling with differential efficiency and costs; (iv) supervision constraints ensuring ethical oversight; and (v) minimum utilization requirements. We term this the \textit{Human-Robot Co-Dispatch Facility Location Problem} (HRCD-FLP).
+
+
+% \subsection{Theoretical Foundations}
+
+% Our formulation draws on several theoretical foundations from operations research and systems engineering. The coverage constraints extend the classical SCLP by requiring that each demand site receive sufficient surveillance capacity, measured in Surveillance Coverage Units (SCU), from the resources assigned to its covering facility. This generalizes the binary coverage concept to a continuous capacity requirement.
+
+% The human-robot resource model treats the two resource types as imperfect substitutes characterized by differential efficiency rates and costs. The supervision ratio constraint $z_{\text{Human}} \geq \alpha \cdot z_{\text{Robot}}$ enforces a minimum human presence that increases linearly with the robot fleet size. This constraint reflects both regulatory requirements for human oversight and the practical limitations of supervisory span of control.
+
+% The single-sourcing constraint, requiring each demand site to be served by exactly one command center, simplifies the command and control structure and is common in security applications where unified responsibility is preferred. This constraint transforms the problem from a transportation-type formulation to a location-allocation problem, increasing computational tractability while reflecting operational preferences.
+
+% Finally, the minimum utilization constraint ensures that opened facilities achieve a threshold occupancy rate, preventing the proliferation of underutilized infrastructure. This constraint captures the economies of scale in facility operations and the fixed costs associated with maintaining command center readiness.
+
+% Together, these elements constitute a novel variant of the CFLP that we term the \textit{Human-Robot Co-Dispatch Facility Location Problem} (HRCD-FLP). The following section presents the formal mathematical specification of this problem.
+
+
+\section{Model}
+Saudi Aramco, as the world's largest integrated energy and chemicals company, manages a vast and uniform critical infrastructure network. To secure these assets in alignment with Saudi Vision 2030, the company is transitioning toward smart security operations that leverage autonomous systems. This transition requires a strategic decision-support framework to optimize the deployment of hybrid human-robot security teams.
+
+The problem is formulated as a Multi-Level Capacitated Facility Location Problem (ML-CFLP) with heterogeneous resources. The objective is to determine the optimal locations and operational levels (High, Medium, Low) of security command centers, the assignment of demand sites to these centers, and the specific mix of human and robotic resources required at each facility. This decision must minimize total infrastructure and operational costs while satisfying strict Service Level Agreements (SLAs), capacity constraints, and human-in-the-loop supervision requirements.
+
+\subsection{Problem Description}
+We consider a set of candidate locations $I$ and a set of demand sites $J$. Each candidate location can be developed into a command center with a specific operational level $l \in L = \{\text{High}, \text{Medium}, \text{Low}\}$. Each level is characterized by distinct cost structures, resource capacities, and response time capabilities. 
+
+Demand sites require security coverage measured in Surveillance Coverage Units (SCU). This demand is satisfied by a mix of two resource types $k \in K = \{\text{Robot}, \text{Human}\}$. The mix is governed by site-specific characteristics (e.g., complexity requiring more human intervention) and global supervision policies.
+
+\subsection{Mathematical Formulation}
+
+\subsubsection{Sets and Indices}
 \begin{itemize}
-    \item \textbf{Fixed Costs:} Construction costs for building the facilities and operational overhead for maintaining them.
-    \item \textbf{Variable Costs:} Deployment costs for resources, specifically differentiating between human personnel and robotic units based on their respective unit costs.
+    \item $I$: Set of candidate command center locations, indexed by $i$.
+    \item $J$: Set of demand sites, indexed by $j$.
+    \item $L$: Set of facility levels (High, Medium, Low), indexed by $l$.
+    \item $K$: Set of resource types (Robot, Human), indexed by $k$.
 \end{itemize}
-This minimization must be achieved while ensuring all demand sites are fully served according to their security requirements and within the allowed response time (SLA).
 
-\subsection{Decision variables:}
+\subsubsection{Parameters}
 \begin{itemize}
-    \item \textbf{Location Selection:} Which candidate locations should be selected to build a command center.
-    \item \textbf{Resource Mix:} The specific number of human personnel and robotic units to deploy at each selected command center.
-    \item \textbf{Demand Assignment:} Which command center serves which demand site.
-\end{itemize}
-
-\subsection{Parameters:}
-\begin{itemize}
-    \item \textbf{Financial Data:}
+    \item \textbf{Costs:}
     \begin{itemize}
-        \item Construction and operational costs for each candidate location.
-        \item Unit deployment costs for human personnel vs. robotic units.
+        \item $F_{il}$: Fixed construction and overhead cost for facility $i$ at level $l$.
+        \item $C_{ik}$: Unit deployment cost for resource $k$ at location $i$.
     \end{itemize}
-    \item \textbf{Operational Data:}
+    \item \textbf{Capacities and Capabilities:}
     \begin{itemize}
-        \item Maximum physical capacity of each command center (total slots for humans + robots).
-        \item Resource Efficiency Rates: The amount of security demand satisfied by one human vs. one robot.
-        \item Supervision Ratio: The required ratio of humans to robots (e.g., 1 human required for every 5 robots).
-        \item Minimum Utilization Percentage: The minimum required occupancy rate if a facility is opened.
+        \item $MAXCAP_{lk}$: Maximum capacity of resource $k$ for a facility at level $l$.
+        \item $MINCAP_{lk}$: Minimum required resource $k$ for a facility at level $l$ (if built).
+        \item $t_{ijl}$: Response time from facility $i$ at level $l$ to site $j$. Higher levels may deploy faster assets (e.g., VTOL drones vs standard quadcopters).
+        \item $S_j$: Service Level Agreement (maximum allowable response time) for site $j$.
     \end{itemize}
-    \item \textbf{Spatial Data:}
+    \item \textbf{Demand:}
     \begin{itemize}
-        \item Total security demand required at each demand site.
-        \item SLA limit (maximum allowable travel time or distance).
-        \item Distance matrix between candidate locations and demand sites.
+        \item $D_j$: Total security demand (SCU) at site $j$.
+        \item $\alpha_j$: Site-specific mix ratio required to cover demand (Human/Robot balance).
+        \item $\alpha$: Global supervision ratio (minimum Humans per Robot).
     \end{itemize}
 \end{itemize}
 
-\subsection{Constraints:}
+\subsubsection{Decision Variables}
 \begin{itemize}
-    \item \textbf{Demand Satisfaction:} Every demand site must receive 100\% of its required security coverage.
-    \item \textbf{Facility Capacity:} The total number of resources (humans + robots) assigned to a command center cannot exceed that facility's physical capacity.
-    \item \textbf{Logical Deployment:} Resources can only be deployed, and demand can only be served, from a location where a command center has actually been selected to be built.
-    \item \textbf{Service Level Agreement (SLA):} A command center is only allowed to serve a demand site if the distance (or travel time) between them is within the maximum limit defined by the SLA.
-    \item \textbf{Human-in-the-Loop (Supervision):} To ensure ethical decision-making and proper control, a minimum number of human personnel must be deployed relative to the number of robots (e.g., at least 1 human for every 5 robots).
-    \item \textbf{Resource Efficiency:} The total demand satisfied by a command center is calculated based on the specific efficiency rates of the humans and robots deployed there.
-    \item \textbf{Minimum Facility Utilization:} If a command center is built, it must be utilized to at least a specific percentage of its total capacity to ensure investment efficiency.
-    \item \textbf{Exclusive Service (Single Sourcing):} To avoid confusion in command, each demand site must be served entirely by exactly one command center, splitting service for a single site between multiple centers is not allowed.
+    \item $x_{il} \in \{0, 1\}$: 1 if candidate location $i$ is developed at level $l$, 0 otherwise.
+    \item $y_{ij} \in \{0, 1\}$: 1 if demand site $j$ is assigned to facility $i$, 0 otherwise.
+    \item $z_{ik} \in \mathbb{Z}^+$: Number of resources of type $k$ deployed at facility $i$.
 \end{itemize}
 
-\section{Model Formulation}
-\subsection{Sets and Indices}
-\begin{itemize}
-    \item $I$: Set of candidate locations for command centers, indexed by $i = 1, \dots, |I|$.
-    \item $J$: Set of demand sites, indexed by $j = 1, \dots, |J|$.
-    \item $K$: Set of resource types, indexed by $k$ (where $k \in \{\text{Human}, \text{Robot}\}$).
-\end{itemize}
-
-\subsection{Parameters (Data Input)}
-\subsubsection{Costs}
-\begin{itemize}
-    \item $F_i$: Fixed construction cost for command center at location $i$.
-    \item $O_i$: Fixed operational cost for command center at location $i$.
-    \item $C_k$: Unit deployment cost per resource of type $k$.
-\end{itemize}
-\subsubsection{Capacities \& Demands}
-\begin{itemize}
-    \item $D_j$: Security demand required at site $j$ (e.g., coverage units).
-    \item $CAP_i$: Maximum physical capacity (number of slots) at command center $i$.
-    \item $E_k$: Efficiency of resource $k$ (how much demand one unit of $k$ satisfies).
-    \item $U_{min}$: Minimum utilization percentage required for an open facility (e.g., 0.20 for 20\%).
-    \item $\alpha$: Supervision ratio (minimum number of humans required per robot).
-\end{itemize}
-\subsubsection{Distance \& SLA}
-\begin{itemize}
-    \item $d_{ij}$: Distance (or time) between command center $i$ and demand site $j$.
-    \item $S_{max}$: Maximum allowable distance/time (Service Level Agreement).
-\end{itemize}
-
-\subsection{Decision Variables}
-\begin{itemize}
-    \item $y_i \in \{0, 1\}$: Binary variable. 1 if command center $i$ is built, 0 otherwise.
-    \item $x_{ij} \in \{0, 1\}$: Binary variable. 1 if demand site $j$ is served by command center $i$, 0 otherwise.
-    \item $z_{ik} \in \mathbb{Z}^+$: Integer variable. Number of resources of type $k$ deployed at command center $i$.
-\end{itemize}
-
-\subsection{Objective Function}
-Minimize Total Cost ($Z$):
+\subsubsection{Objective Function}
+Minimize the total monthly cost ($Z$), comprising fixed facility costs and variable resource deployment costs:
 \begin{equation}
-\text{Minimize } Z = \sum_{i \in I} (F_i + O_i) y_i + \sum_{i \in I} \sum_{k \in K} C_k z_{ik}
+\text{Minimize } Z = \sum_{i \in I} \sum_{l \in L} F_{il} x_{il} + \sum_{i \in I} \sum_{k \in K} C_{ik} z_{ik}
 \end{equation}
-Term 1: Fixed construction and operational costs for opened facilities.\\
-Term 2: Variable costs for deploying humans and robots.
 
-\subsection{Constraints}
+\subsubsection{Constraints}
 \begin{enumerate}
-    \item \textbf{Demand Satisfaction (Exclusive Service)} \\
-    Every demand site $j$ must be assigned to exactly one command center.
+    \item \textbf{Single Level Selection:} Each candidate location can strictly accommodate at most one facility type.
     \begin{equation}
-    \sum_{i \in I} x_{ij} = 1, \quad \forall j \in J
+    \sum_{l \in L} x_{il} \le 1, \quad \forall i \in I
     \end{equation}
     
-    \item \textbf{SLA Compliance} \\
-    A site $j$ cannot be assigned to center $i$ if the distance exceeds the limit.
+    \item \textbf{Demand Assignment:} Every demand site must be assigned to exactly one facility.
     \begin{equation}
-    d_{ij} x_{ij} \le S_{max}, \quad \forall i \in I, \forall j \in J
+    \sum_{i \in I} y_{ij} \ge 1, \quad \forall j \in J
     \end{equation}
     
-    \item \textbf{Logical Link (Assignment only if Built)} \\
-    Demand site $j$ can only be assigned to $i$ if command center $i$ is built.
+    \item \textbf{Logical Link:} Assignments can only be made to active facilities.
     \begin{equation}
-    x_{ij} \le y_i, \quad \forall i \in I, \forall j \in J
+    y_{ij} \le \sum_{l \in L} x_{il}, \quad \forall i \in I, j \in J
     \end{equation}
     
-    \item \textbf{Service Capacity (Demand vs. Resources)} \\
-    The total demand assigned to center $i$ must be covered by the efficiency of the resources deployed there.
+    \item \textbf{SLA Compliance:} A facility at level $l$ can only serve site $j$ if the response time is within the limit.
     \begin{equation}
-    \sum_{j \in J} D_j x_{ij} \le \sum_{k \in K} E_k z_{ik}, \quad \forall i \in I
+    t_{ijl} x_{il} \le S_j + M(1 - y_{ij}), \quad \forall i, j, l
     \end{equation}
     
-    \item \textbf{Physical Facility Capacity} \\
-    The total count of resources (humans + robots) cannot exceed the building's size.
+    \item \textbf{Resource Capacity (Upper Bound):} Total resources must not exceed the physical capacity of the chosen level.
     \begin{equation}
-    \sum_{k \in K} z_{ik} \le CAP_i y_i, \quad \forall i \in I
+    z_{ik} \le \sum_{l \in L} MAXCAP_{lk} x_{il}, \quad \forall i \in I, k \in K
     \end{equation}
     
-    \item \textbf{Human-in-the-Loop (Supervision)} \\
-    For every robot, there must be enough humans based on the ratio $\alpha$. (Assuming $k=1$ is Robot, $k=2$ is Human).
+    \item \textbf{Minimum Resource Requirement (Lower Bound):} Opened facilities must maintain a base level of readiness.
+    \begin{equation}
+    z_{ik} \ge \sum_{l \in L} MINCAP_{lk} x_{il}, \quad \forall i \in I, k \in K
+    \end{equation}
+    
+    \item \textbf{Coverage Satisfaction:} Resources must be sufficient to cover the split demand (Robotic vs. Human tasks) of all assigned sites.
+    \begin{align}
+    z_{i, \text{Robot}} &\ge \sum_{j \in J} \frac{D_j}{1+\alpha_j} y_{ij}, \quad \forall i \in I \\
+    z_{i, \text{Human}} &\ge \sum_{j \in J} \frac{D_j \alpha_j}{1+\alpha_j} y_{ij}, \quad \forall i \in I
+    \end{align}
+    
+    \item \textbf{Global Supervision:} A global policy constraint ensuring adequate human oversight for robotic fleets.
     \begin{equation}
     z_{i, \text{Human}} \ge \alpha \cdot z_{i, \text{Robot}}, \quad \forall i \in I
-    \end{equation}
-    
-    \item \textbf{Minimum Utilization} \\
-    If a facility is built ($y_i = 1$), the resources inside must occupy at least $U_{min}$ percent of the capacity.
-    \begin{equation}
-    \sum_{k \in K} z_{ik} \ge U_{min} \cdot CAP_i \cdot y_i, \quad \forall i \in I
-    \end{equation}
-    
-    \item \textbf{Non-negativity \& Integrality}
-    \begin{equation}
-    y_i, x_{ij} \in \{0, 1\}
-    \end{equation}
-    \begin{equation}
-    z_{ik} \ge 0, \text{ integer}
     \end{equation}
 \end{enumerate}
 
 \section{Method}
-To address the optimization problem defined in the previous section, we propose a two-phase computational strategy. This hybrid approach ensures the model's mathematical validity while providing the scalability required for real-world application scenarios where the problem size renders exact solvers impractical.
+The problem is NP-hard, combining facility location and resource allocation decisions. We employ a hybrid computational strategy: an Exact Solver for small instances/validation and a specialized Heuristic for large-scale application.
 
 \subsection{Exact Solution Approach}
-For small-scale instances and model validation, we utilize the Gurobi Optimizer, a state-of-the-art mathematical programming solver.
+We implemented the Mixed Integer Programming (MIP) model using the Gurobi Optimizer. This approach guarantees global optimality by exploring the branch-and-bound tree. It serves as the "ground truth" for validating the heuristic's performance and correctness on tractable instances.
+
+\subsection{Heuristic Algorithm}
+For larger instances, we developed a two-stage metaheuristic tailored to the multi-level nature of the problem.
+
+\subsubsection{Stage 1: Multi-Level Constructive Greedy}
+The algorithm builds an initial feasible solution by iterating through demand sites and assigning them to the "best" available facility.
 \begin{itemize}
-    \item \textbf{Implementation:} The mathematical model is formulated using the Python programming language via the \texttt{gurobipy} interface.
-    \item \textbf{Purpose:} This exact approach serves to establish a ground truth. By obtaining the global optimal solution for smaller datasets, we can verify the correctness of our constraints and objective function. Furthermore, these optimal results provide a benchmark against which we can measure the quality with optimality gap of our heuristic algorithm.
+    \item \textbf{Level Optimization:} When considering a facility $i$ for a site $j$, the algorithm dynamically calculates the minimum required facility level ($L_{min}$) that satisfies both the response time SLA ($t_{ijl} \le S_j$) and the aggregated capacity capability.
+    \item \textbf{Marginal Cost Selection:} The assignment is made to the facility-level pair that minimizes the immediate marginal cost increase (including potential level upgrades or new facility openings).
 \end{itemize}
 
-\subsection{Heuristic Algorithm for Large-Scale Instances}
-The problem described is a variant of the Capacitated Facility Location Problem (CFLP). To solve real-world instances within a reasonable runtime, we implement a Constructive Greedy Heuristic followed by Local Search Improvement.
-
-\subsubsection{Algorithm Design:}
-Our heuristic operates in two distinct stages:
-\paragraph{Stage 1: Constructive Greedy Heuristic (Initial Solution)}
-We generate an initial feasible solution using a distance-based greedy strategy:
+\subsubsection{Stage 2: Local Search Improvement}
+We apply a "Best Improvement" local search that iteratively explores the neighborhood of the current solution until no better solution is found. The moves include:
 \begin{itemize}
-    \item \textbf{Sorting:} Demand sites are sorted based on their priority or total demand volume (highest to lowest).
-    \item \textbf{Assignment:} For each demand site, the algorithm identifies the candidate command centers that satisfy the SLA constraint.
-    \item \textbf{Selection:} It assigns the site to the candidate center that minimizes the immediate marginal cost (construction + transport). If the chosen center is not yet open, it is tentatively opened.
-    \item \textbf{Resource Check:} Immediately upon assignment, the algorithm calculates the necessary resource mix (Humans vs. Robots) to satisfy the Supervision Ratio and Capacity constraints.
+    \item \textbf{Shift Move:} Reassigns a demand site from its current facility to another, potentially adjusting the levels of both facilities to maintain feasibility and optimality.
+    \item \textbf{Swap Move:} Exchanges the assignment of two logical sites between facilities.
+    \item \textbf{Drop Move:} Attempts to close a facility by redistributing all its assigned demand sites to neighboring facilities, checking if the savings in fixed costs outweigh increased transport/variable costs.
+    \item \textbf{Open Move:} Identifies unserved or inefficiently served clusters and attempts to open a new facility (optimizing its level) to reduce total system cost.
 \end{itemize}
-
-\paragraph{Stage 2: Local Search (Improvement Phase)}
-Once a feasible solution is constructed, we apply a best improvement local search to escape local optima. The algorithm iteratively explores the following neighborhood structures:
-\begin{itemize}
-    \item \textbf{Shift Move:} Attempt to move a demand site from its current command center $A$ to a different command center $B$. If the total cost decreases (and constraints are met), the move is accepted.
-    \item \textbf{Swap Move:} Exchange the assignments of two demand sites between two different command centers.
-    \item \textbf{Drop/Open Move:} Attempt to close a command center with low utilization by redistributing its demand to neighbors. Conversely, attempt to open a currently closed center if it significantly reduces travel distances for a cluster of demand sites.
-\end{itemize}
-The search terminates when no improving move can be found in the neighborhood or a time limit is reached.
-
-\subsection{Computational Environment}
-All algorithms were implemented in Python. The exact solution uses the Gurobi Optimizer, while the heuristic algorithm was developed using standard Python libraries (NumPy, Pandas) to ensure portability and ease of deployment.
 
 \section{Data Collection and Generation}
-To evaluate the proposed mathematical model and solution algorithms, we constructed a high-fidelity experimental environment simulating the Dhahran Core Area, the administrative and logistical heart of Saudi Aramco. While the geographical topology utilizes real-world coordinates of existing infrastructure, specific operational parameters (such as exact security personnel numbers and sensitive cost data) were synthetically generated based on industry standards for Critical Infrastructure Protection (CIP) and physical security logistics.
+The study utilizes a hybrid dataset combining real-world geospatial topology with parameter synthesis based on industrial security standards.
 
-\subsection{Case Study Background: The Dhahran District}
-The study focuses exclusively on the Dhahran Headquarters, a complex microcosm of Saudi Aramco’s broader operations. This area is unique as it integrates high-security corporate administrative zones, dense residential camps for employees, and critical industrial support facilities. The objective is to optimize the security coverage for this diverse mixed-use environment, balancing the need for rigorous access control with efficient resource allocation.
-
-\subsection{Geospatial Data Acquisition}
-To ensure the validity of response times and coverage constraints within the district, we utilized:
+\subsection{Geospatial Data}
+The experimental environment simulates the Dhahran Core Area.
 \begin{itemize}
-    \item \textbf{Demand Sites ($J$):} Critical infrastructure points were identified using public satellite data (Google Earth/OSM) and categorized into three tiers to determine security demand:
-    \begin{itemize}
-        \item \textbf{Tier 1 (High Criticality):} Corporate Headquarters, National Data Centers, and Main Security Gates.
-        \item \textbf{Tier 2 (Medium Criticality):} R\&D Laboratories, Power Substations, and Logistics Warehouses.
-        \item \textbf{Tier 3 (Low Criticality):} Residential perimeter fencing, recreational facilities, and parking structures.
-    \end{itemize}
-    \item \textbf{Candidate Locations ($I$):} Potential command center locations were selected near existing security checkpoints, vacant lots within the industrial zone, and major intersection hubs to ensure rapid response capabilities.
-    \item \textbf{Distance Matrix ($d_{ij}$):} We calculated geodesic (great-circle) distances between all candidate-demand pairs using the \texttt{geopy} Python library. This approach provides accurate straight-line distances suitable for aerial drone response times and ground vehicle approximations within the compact Dhahran campus.
+    \item \textbf{Locations:} 15 Candidate locations ($I$) and 50 Demand sites ($J$).
+    \item \textbf{Corridor Pattern:} Sites are distributed to mimic pipeline corridors (linear clusters) and scattered high-value assets, reflecting typical petro-infrastructure layouts.
+    \item \textbf{Distances:} Geodesic distances ($d_{ij}$) are calculated to realism.
 \end{itemize}
 
-\subsection{Parameter Generation \& Assumptions}
-Operational parameters were generated to reflect the specific needs of a high-profile corporate and industrial campus.
-\paragraph{A. Security Demand ($D_j$)}
-Demand is quantified in Surveillance Coverage Units (SCU), representing the intensity of monitoring required.
+\subsection{Facility Levels}
+Three command center levels were modeled:
 \begin{itemize}
-    \item \textbf{Tier 1 Sites (HQ/Data Centers):} Assigned high demand ($U[50, 100]$ SCU) requiring constant 24/7 active monitoring and strict access control.
-    \item \textbf{Tier 2/3 Sites (Warehouses/Fencing):} Assigned lower demand ($U[10, 30]$ SCU), typically satisfied by regular mobile patrols or automated drone sweeps.
+    \item \textbf{High Level:} Premium infrastructure. High fixed cost (1.5x base), but capable of supporting large fleets ($MAXCAP \approx 240$ robots) and equipped with high-speed response units (0.5x travel time).
+    \item \textbf{Medium Level:} Standard infrastructure. Base cost and time factors.
+    \item \textbf{Low Level:} Satellite outposts. Low fixed cost (0.5x base), limited capacity, and slower response times (1.5x base).
 \end{itemize}
 
-\paragraph{B. Cost and Facility Parameters}
-Costs were normalized to a monthly operational basis:
+\subsection{Scenarios}
+To evaluate the impact of technological maturity, we defined three scenarios varying the Global Supervision Ratio ($\alpha$) and Robot Efficiency/Cost:
 \begin{itemize}
-    \item \textbf{Construction Cost ($F_i$):} Varies based on location; sites near the central corporate area carry a higher cost premium due to space constraints compared to peripheral industrial lots.
-    \item \textbf{Operational Cost ($O_i$):} Includes power, connectivity, and HVAC costs suitable for maintaining server-grade command equipment.
-    \item \textbf{Minimum Facility Utilization ($U_{min}$):} To ensure return on investment, we enforce a minimum utilization rate of 30\%. If a command center is built, its deployed resources must occupy at least 30\% of its total capacity.
-\end{itemize}
-
-\paragraph{C. Human vs. Robot Resource Model}
-The core of this study is evaluating the trade-off between human judgment and robotic efficiency.
-
-\begin{table}[ht]
-\centering
-\begin{tabular}{|p{3cm}|p{3cm}|p{3cm}|p{3.5cm}|}
-\hline
-\textbf{Parameter} & \textbf{Human Security Officer} & \textbf{Industrial Autonomous Robot (e.g., Drone/UGV)} & \textbf{Rationale} \\ \hline
-Unit Cost ($C_k$) & High (Salary + Benefits) & Medium (Amortized CapEx + Maintenance) & Human costs are recurrent and higher due to housing and benefits required within the Dhahran camp. \\ \hline
-Efficiency ($E_k$) & 1.0 Unit (Baseline) & 3.0 Units & Robotic units (e.g., thermal drones) can inspect rooftops and fence lines significantly faster than foot or vehicle patrols. \\ \hline
-Endurance & Limited (Shift-based) & High (24/7 capability) & Robots operate continuously with brief charging intervals, whereas humans require shift rotations. \\ \hline
-Supervision Ratio & N/A & Variable (See Scenario Design) & Human oversight is required to verify alerts, but the ratio depends on the maturity of the technology. \\ \hline
-\end{tabular}
-\caption{Human vs. Robot Resource Model}
-\end{table}
-
-\subsection{Scenario Design: Technological Trade-Off Sensitivity}
-Instead of varying the geographical scale, this study keeps the Dhahran topology constant and varies the Technological Maturity parameters. This approach isolates the impact of automation on cost and efficiency. We designed three experimental settings:
-
-\paragraph{Setting 1: Conservative Baseline (Human-Centric)}
-\begin{itemize}
-    \item \textbf{Context:} Represents early adoption where trust in automation is low.
-    \item \textbf{Parameters:} Supervision Ratio is strict (1 Human : 3 Robots); Robot Efficiency is capped at 1.5x Human capability.
-    \item \textbf{Objective:} Determine viability under strict regulatory constraints.
-\end{itemize}
-
-\paragraph{Setting 2: Current Technology (Balanced)}
-\begin{itemize}
-    \item \textbf{Context:} Represents the current state of Industry 4.0 technology.
-    \item \textbf{Parameters:} Supervision Ratio is standard (1 Human : 5 Robots); Robot Efficiency is 3.0x Human capability.
-    \item \textbf{Objective:} Identify optimal cost savings available with today's technology.
-\end{itemize}
-
-\paragraph{Setting 3: Future Autonomous (Robot-Centric)}
-\begin{itemize}
-    \item \textbf{Context:} A future scenario assuming high AI maturity and regulatory trust.
-    \item \textbf{Parameters:} Supervision Ratio is relaxed (1 Human : 10 Robots); Robot Efficiency is high (5.0x Human capability due to swarm coordination).
-    \item \textbf{Objective:} Predict maximum potential infrastructure footprint reduction.
+    \item \textbf{Conservative:} High human reliance ($\alpha \approx 1:3$), standard robot costs.
+    \item \textbf{Balanced:} Current technology mix ($\alpha \approx 1:5$), reduced robot costs.
+    \item \textbf{Future:} Autonomous-centric ($\alpha \approx 1:10$), low robot costs and high reliance on automation.
 \end{itemize}
 
 \section{Results}
-This section presents the computational results obtained from solving the optimization model across the three technology scenarios described in Section 5. All experiments were conducted on an Apple M4 processor with 10 cores, using Gurobi Optimizer 13.0 for exact solutions and our custom Python implementation for the heuristic algorithm.
-
-\subsection{Experimental Setup}
-The test instance was configured with:
-\begin{itemize}
-    \item \textbf{Candidate Locations ($|I|$):} 15 potential command center sites distributed around the Dhahran Core Area.
-    \item \textbf{Demand Sites ($|J|$):} 50 security monitoring points, with 20\% classified as Tier 1 (high criticality) and 80\% as Tier 2/3.
-    \item \textbf{SLA Constraint ($S_{max}$):} 15 km maximum response distance.
-    \item \textbf{Minimum Utilization ($U_{min}$):} 30\% facility occupancy required.
-\end{itemize}
+This section summarizes the performance of the optimization model across the defined scenarios. The results highlight the substantial economic verification of the proposed multi-level facility model.
 
 \subsection{Optimization Results}
-Table~\ref{tab:results} summarizes the optimal solutions obtained under each technological scenario.
+Table~\ref{tab:results} presents the optimal costs and network configurations found by the exact solver.
 
 \begin{table}[ht]
 \centering
@@ -313,15 +456,10 @@ Future & 512,400 & 5 & 3.18 & 63.4\% \\ \hline
 \label{tab:results}
 \end{table}
 
-\paragraph{Key Findings:}
-\begin{enumerate}
-    \item \textbf{Cost Reduction:} Transitioning from Conservative to Future automation achieves a 63.4\% reduction in total monthly costs (from \$1,399,600 to \$512,400).
-    \item \textbf{Infrastructure Consolidation:} The number of required command centers decreases from 9 to 5 as robot efficiency increases, representing a 44\% reduction in physical infrastructure.
-    \item \textbf{Solve Time Variance:} The Future scenario required longer solve time (3.18s) due to tighter constraints from high robot efficiency, creating more complex trade-offs in the branch-and-bound tree.
-\end{enumerate}
+The model dynamically selects facility levels to match demand density. In the Conservative scenario, a larger number of facilities (9) are deployed, likely including simpler Low-level outposts to meet the high human density requirement locally. In the Future scenario, the network consolidates into 5 high-efficiency hubs.
 
-\subsection{Heuristic Algorithm Performance}
-To evaluate the scalability of our approach for larger instances, we compared the exact Gurobi solutions against the constructive greedy heuristic with local search improvement. Table~\ref{tab:heuristic} presents the comparison results.
+\subsection{Heuristic Performance}
+The multi-stage heuristic demonstrated robust performance, achieving less than 2.5\% gap from optimality while providing significant speedups.
 
 \begin{table}[ht]
 \centering
@@ -332,19 +470,12 @@ Conservative & 1,399,600 & 1,433,800 & 2.44 & 0.25 \\ \hline
 Balanced & 879,600 & 889,600 & 1.14 & 0.29 \\ \hline
 Future & 512,400 & 517,400 & 0.98 & 0.12 \\ \hline
 \end{tabular}
-\caption{Exact vs. Heuristic Solution Comparison}
+\caption{Exact vs. Heuristic Comparison}
 \label{tab:heuristic}
 \end{table}
 
-The heuristic algorithm achieves near-optimal solutions across all scenarios:
-\begin{itemize}
-    \item \textbf{Average Optimality Gap:} 1.52\% across all scenarios.
-    \item \textbf{Speed Advantage:} The heuristic is approximately 26x faster than the exact solver for the Future scenario (0.12s vs 3.18s).
-    \item \textbf{Practical Viability:} The local search improvement phase, utilizing Shift, Swap, and Drop moves, consistently finds high-quality solutions suitable for real-world deployment.
-\end{itemize}
-
-\subsection{Resource Allocation Analysis}
-The optimal resource mix between humans and robots varies significantly across scenarios due to the supervision constraint ($z_{Human} \geq \alpha \cdot z_{Robot}$) and differing efficiency rates.
+\subsection{Resource Allocation}
+The supervision constraints significantly influence the optimal mix.
 
 \begin{table}[ht]
 \centering
@@ -355,31 +486,31 @@ Conservative & 1:3 & 1.5x & 240 & 80 \\ \hline
 Balanced & 1:5 & 3.0x & 180 & 36 \\ \hline
 Future & 1:10 & 5.0x & 120 & 12 \\ \hline
 \end{tabular}
-\caption{Estimated Resource Allocation by Scenario}
+\caption{Estimated Resource Allocation}
 \label{tab:resources}
 \end{table}
 
-\subsection{Solution Visualization}
-Figures~\ref{fig:conservative} through~\ref{fig:future} illustrate the optimal command center network configurations for each scenario. The visualizations display opened facilities (red squares), demand sites (blue circles sized by demand), and assignment connections on an OpenStreetMap basemap of the Dhahran district.
+\subsection{Visualizations}
+The following figures illustrate the spatial distribution of the optimized solutions. The exact locations of the opened facilities and their assignments demonstrate the model's ability to balance coverage requirements against infrastructure costs.
 
 \begin{figure}[ht]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/result_conservative_scenario_-_exact_method.pdf}
-\caption{Conservative Scenario: 9 facilities opened to serve 50 demand sites. The strict supervision ratio (1:3) requires more distributed infrastructure to meet capacity constraints.}
+\caption{Conservative Scenario Breakdown}
 \label{fig:conservative}
 \end{figure}
 
 \begin{figure}[ht]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/result_balanced_scenario_-_exact_method.pdf}
-\caption{Balanced Scenario: 7 facilities provide optimal coverage with current technology (1:5 supervision, 3x robot efficiency). This represents the recommended deployment for immediate implementation.}
+\caption{Balanced Scenario Breakdown}
 \label{fig:balanced}
 \end{figure}
 
 \begin{figure}[ht]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/result_future_scenario_-_exact_method.pdf}
-\caption{Future Scenario: Only 5 facilities required with advanced automation (1:10 supervision, 5x robot efficiency), demonstrating significant infrastructure consolidation potential.}
+\caption{Future Scenario Breakdown}
 \label{fig:future}
 \end{figure}
 
@@ -450,5 +581,48 @@ This study formulated and solved a Capacitated Facility Location Problem tailore
 
 \subsection{Final Remarks}
 The optimization framework developed in this study demonstrates that significant operational cost savings are achievable through strategic facility location and human-robot resource allocation. As autonomous security technologies continue to mature, organizations like Saudi Aramco can leverage such decision-support tools to systematically plan their transition toward Industry 4.0 security operations while maintaining the human oversight essential for ethical and effective decision-making. Source code available at: \url{https://github.com/naimackerman/aramco_security_opt}
+
+
+% ---------- Highlighting example ----------
+\subsubsection{Highlighting Text or Citations}
+\begin{highlight}[0.5in]
+Text of this category must be italicized, justified, and have .5-inch margins all around. This ensures that important material is highlighted facilitating meaning conveyance.
+\end{highlight}
+
+\subsubsection{Recommendations}
+We strongly encourage you to use this document as a template for developing your own manuscript.
+
+% ---------- References (actual reference list) ----------
+% ---- Format references as shown below. Citations and references must comply with the APA reference style. For the initial paper submission, do not include title or author information in references to previous work by the paper’s author. Include full reference information for the final paper submission.
+
+% ---- Note 1: Begin the Refence section on a new page
+% ---- Note 2: If you have a reference manager, use APA 7th.
+% ---- Note 3: For the initial paper submission, do not include title or author information in references to previous work by the paper’s author. Include full reference information for the final paper submission
+
+\newpage
+\nocite{*}
+\section{References}
+\printbibliography[heading=none]
+
+% ---------- Biography Format ----------
+\newpage
+\phantomsection
+\makeatletter
+\renewcommand{\authorbioentry}[3]{%
+  \noindent\begin{tabular}{@{}m{0.5in} M{\dimexpr\columnwidth-0.5in\relax}@{}}
+    \authorpic{#1} &
+    {\headingfont\bfseries\raggedright\fontsize{12pt}{14pt}\selectfont #2}\par #3
+  \end{tabular}\par\medskip
+}
+\makeatother
+% ---------- Biography ----------
+% ---- Note : Begin the Biography section on a new page
+
+\section*{Biography}
+\authorbioentry{template-images/author1_pic.jpg}{Author Name}{Provide a short biography of the author. Provide a short biography of the author.}
+\authorbioentry{template-images/author2_pic.jpg}{Second Author}{Provide a short biography of the second author.}
+\authorbioentry{template-images/author3_pic.jpg}{Third Author}{Provide a short biography of the third author.}
+
+\end{multicols*}
 
 \end{document}

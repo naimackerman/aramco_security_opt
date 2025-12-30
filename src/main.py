@@ -17,17 +17,16 @@ import json
 from pathlib import Path
 
 from .data_gen import DataGenerator
-from .exact_solver import solve_exact
+from .exact_solver import solve_exact, extract_solution
 from .heuristic_solver import HeuristicSolver
 from .visualization import plot_solution
 from .config import RESULTS_DIR
 import numpy as np
+import pandas as pd
 
-# Create solutions directory
 SOLUTIONS_DIR = RESULTS_DIR / "solutions"
 SOLUTIONS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Valid scenarios
 VALID_SCENARIOS = ['Conservative', 'Balanced', 'Future']
 
 
@@ -125,41 +124,6 @@ Examples:
     return parser.parse_args()
 
 
-def extract_gurobi_solution(model, num_I, num_J):
-    """
-    Helper to extract variable values from Gurobi Model.
-    
-    Args:
-        model: Solved Gurobi model
-        num_I: Number of candidate locations
-        num_J: Number of demand sites
-        
-    Returns:
-        tuple: (opened_facilities, assignments)
-    """
-    if not model:
-        return [], []
-    
-    opened = []
-    assignments = [-1] * num_J
-    
-    # Extract y (Opened Facilities)
-    for i in range(num_I):
-        var = model.getVarByName(f"y[{i}]")
-        if var and var.X > 0.5:
-            opened.append(i)
-            
-    # Extract x (Assignments)
-    for j in range(num_J):
-        for i in range(num_I):
-            var = model.getVarByName(f"x[{i},{j}]")
-            if var and var.X > 0.5:
-                assignments[j] = i
-                break
-                
-    return opened, assignments
-
-
 def run_experiment(args):
     """
     Run optimization experiment with given configuration.
@@ -183,15 +147,16 @@ def run_experiment(args):
     # Results storage
     results = []
     
-    print("=" * 75)
+    print("=" * 80)
     print("Saudi Aramco Security Command Center Optimization")
-    print("=" * 75)
+    print("=" * 80)
     print(f"Configuration: {args.candidates} candidates, {args.sites} demand sites, seed={args.seed}")
+    print(f"Facility Levels: {gen.levels}")
     print(f"Scenarios: {', '.join(scenarios)}")
     print(f"Solvers: {'Exact' if run_exact else ''}{' + ' if run_exact and run_heuristic else ''}{'Heuristic' if run_heuristic else ''}")
-    print("=" * 75)
-    print(f"{'Scenario':<15} | {'Method':<10} | {'Cost':>15} | {'Time (s)':>10} | {'Gap %':>8}")
-    print("-" * 75)
+    print("=" * 80)
+    print(f"{'Scenario':<15} | {'Method':<10} | {'Cost':>15} | {'Time (s)':>10} | {'Gap %':>8} | {'Facilities'}")
+    print("-" * 80)
     
     for sc in scenarios:
         data = gen.generate_params(scenario=sc)
@@ -206,25 +171,39 @@ def run_experiment(args):
                 exact_time = time.time() - start_time
                 
                 if model:
-                    opened_exact, assign_exact = extract_gurobi_solution(
-                        model, data['num_I'], data['num_J']
-                    )
+                    solution = extract_solution(model, data)
+                    opened_exact = solution['opened']
+                    assign_exact = solution['assignments']
+                    levels_exact = solution['levels']
+                    
                     if not args.no_plots:
                         plot_solution(data, opened_exact, assign_exact, 
-                                     title=f"{sc} Scenario - Exact Method")
-                    print(f"{sc:<15} | {'Exact':<10} | ${exact_cost:>14,.2f} | {exact_time:>10.3f} | {'N/A':>8}")
+                                     title=f"{sc} Scenario - Exact Method",
+                                     facility_levels=levels_exact,
+                                     resources=solution['resources'])
+                    
+                    # Format facility info
+                    fac_info = ", ".join([f"{i}({levels_exact[i][0]})" for i in opened_exact])
+                    print(f"{sc:<15} | {'Exact':<10} | ${exact_cost:>14,.2f} | {exact_time:>10.3f} | {'N/A':>8} | {fac_info}")
+                    
                     scenario_result['exact'] = {
                         'cost': exact_cost,
                         'time': exact_time,
                         'facilities': opened_exact,
-                        'num_facilities': len(opened_exact)
+                        'levels': levels_exact,
+                        'num_facilities': len(opened_exact),
+                        'resources': solution['resources'],
+                        'total_resources': {
+                            'robot': sum(r['robot'] for r in solution['resources'].values()),
+                            'human': sum(r['human'] for r in solution['resources'].values())
+                        }
                     }
                 else:
-                    print(f"{sc:<15} | {'Exact':<10} | {'INFEASIBLE':>15} | {exact_time:>10.3f} | {'N/A':>8}")
+                    print(f"{sc:<15} | {'Exact':<10} | {'INFEASIBLE':>15} | {exact_time:>10.3f} | {'N/A':>8} |")
                     scenario_result['exact'] = None
                     exact_cost = None
             except Exception as e:
-                print(f"{sc:<15} | {'Exact':<10} | {'ERROR':>15} | {'N/A':>10} | {'N/A':>8}")
+                print(f"{sc:<15} | {'Exact':<10} | {'ERROR':>15} | {'N/A':>10} | {'N/A':>8} |")
                 if args.verbose:
                     print(f"  Error: {e}")
                 scenario_result['exact'] = {'error': str(e)}
@@ -241,12 +220,17 @@ def run_experiment(args):
             heur_cost = heur.local_search()
             heur_time = time.time() - start_time
             
-            opened_heur = [i for i, val in enumerate(heur.y) if val == 1]
-            assign_heur = heur.assignment
+            solution = heur.get_solution()
+            opened_heur = solution['opened']
+            assign_heur = solution['assignments']
+            levels_heur = solution['levels']
+            resources_heur = solution['resources']
             
             if not args.no_plots:
                 plot_solution(data, opened_heur, assign_heur, 
-                             title=f"{sc} Scenario - Heuristic Method")
+                             title=f"{sc} Scenario - Heuristic Method",
+                             facility_levels=levels_heur,
+                             resources=resources_heur)
             
             # Calculate optimality gap
             if exact_cost and exact_cost > 0:
@@ -256,18 +240,26 @@ def run_experiment(args):
                 gap = None
                 gap_str = "N/A"
             
-            print(f"{sc:<15} | {'Heuristic':<10} | ${heur_cost:>14,.2f} | {heur_time:>10.3f} | {gap_str}")
+            # Format facility info
+            fac_info = ", ".join([f"{i}({levels_heur[i][0]})" for i in opened_heur])
+            print(f"{sc:<15} | {'Heuristic':<10} | ${heur_cost:>14,.2f} | {heur_time:>10.3f} | {gap_str:>8} | {fac_info}")
             
             scenario_result['heuristic'] = {
                 'cost': heur_cost,
                 'time': heur_time,
                 'facilities': opened_heur,
+                'levels': levels_heur,
                 'num_facilities': len(opened_heur),
-                'gap_percent': gap
+                'gap_percent': gap,
+                'resources': resources_heur,
+                'total_resources': {
+                    'robot': sum(r['robot'] for r in resources_heur.values()),
+                    'human': sum(r['human'] for r in resources_heur.values())
+                }
             }
         
         results.append(scenario_result)
-        print("-" * 75)
+        print("-" * 80)
     
     # Export results to JSON
     if args.output:
@@ -278,7 +270,68 @@ def run_experiment(args):
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2, default=str)
     print(f"\nResults exported to: {results_file}")
-    print("=" * 75)
+
+    # Export results to Excel
+    excel_file = results_file.with_suffix('.xlsx')
+    excel_rows = []
+    
+    for res in results:
+        sc = res['scenario']
+        
+        # Exact Method
+        if res.get('exact'):
+            if 'error' in res['exact']:
+                excel_rows.append({
+                    'Scenario': sc,
+                    'Method': 'Exact',
+                    'Cost': 'Error',
+                    'Time (s)': 'N/A',
+                    'Gap (%)': 'N/A',
+                    'Facilities': 'N/A',
+                    'Total Robots': 'N/A',
+                    'Total Humans': 'N/A',
+                    'Note': res['exact']['error']
+                })
+            else:
+                exact = res['exact']
+                excel_rows.append({
+                    'Scenario': sc,
+                    'Method': 'Exact',
+                    'Cost': exact['cost'],
+                    'Time (s)': exact['time'],
+                    'Gap (%)': 0.0,
+                    'Facilities': exact['num_facilities'],
+                    'Total Robots': exact['total_resources']['robot'],
+                    'Total Humans': exact['total_resources']['human'],
+                    'Note': ''
+                })
+        
+        # Heuristic Method
+        if res.get('heuristic'):
+            heur = res['heuristic']
+            excel_rows.append({
+                'Scenario': sc,
+                'Method': 'Heuristic',
+                'Cost': heur['cost'],
+                'Time (s)': heur['time'],
+                'Gap (%)': heur.get('gap_percent', 'N/A'),
+                'Facilities': heur['num_facilities'],
+                'Total Robots': heur['total_resources']['robot'],
+                'Total Humans': heur['total_resources']['human'],
+                'Note': ''
+            })
+            
+    if excel_rows:
+        try:
+            df = pd.DataFrame(excel_rows)
+            cols = ['Scenario', 'Method', 'Cost', 'Time (s)', 'Gap (%)', 'Facilities', 'Total Robots', 'Total Humans', 'Note']
+            cols = [c for c in cols if c in df.columns]
+            df = df[cols]
+            df.to_excel(excel_file, index=False)
+            print(f"Results exported to: {excel_file}")
+        except Exception as e:
+            print(f"Failed to export Excel: {e}")
+    print("=" * 80)
     
     return results
 
