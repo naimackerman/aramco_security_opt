@@ -27,7 +27,6 @@ from dotenv import load_dotenv
 import gurobipy as gp
 from gurobipy import GRB
 
-# Load environment variables from .env file
 load_dotenv()
 
 

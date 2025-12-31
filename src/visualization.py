@@ -10,42 +10,45 @@ Creates geographic network plots showing:
 import matplotlib.pyplot as plt
 import numpy as np
 import contextily as ctx
+from adjustText import adjust_text
 from .config import FIGURES_DIR
 
 plt.rcParams['pdf.fonttype'] = 42
 plt.rcParams['ps.fonttype'] = 42
 
+ROBOT_ICON = "⬢"
+HUMAN_ICON = "◉"
 
-def plot_solution(data, opened_facilities, assignments, title="Optimization Result", 
-                  save_format="pdf", facility_levels=None, resources=None):
+
+def _draw_solution_on_axes(ax, data, opened_facilities, assignments, 
+                           facility_levels=None, resources=None, show_legend=True,
+                           legend_loc='upper right', stats_position='left',
+                           method_name=None):
     """
-    Visualize the location map and assignments on a geographic basemap.
+    Draw a solution visualization on a given axes.
     
     Args:
+        ax: Matplotlib axes to draw on
         data: Dictionary containing coordinate and demand data
         opened_facilities: List of opened facility indices (x_i = 1)
-        assignments: Mapping of demand site j to facility i (list format: assignments[j] = i)
-        title: Plot title string
-        save_format: Output format - 'pdf' (recommended for LaTeX) or 'png'
+        assignments: Mapping of demand site j to facility i
         facility_levels: Optional dict mapping facility index to level
         resources: Optional dict mapping facility index to {'robot': n, 'human': m}
-        
-    Returns:
-        str: Path to saved figure
+        show_legend: Whether to show the legend
+        legend_loc: Location of legend
+        stats_position: Position of stats box ('left' or 'right')
+        method_name: Optional method name ('Exact' or 'Heuristic') to display in stats
     """
     coords_I = np.array(data['coords_I'])  # (lat, lon)
     coords_J = np.array(data['coords_J'])  # (lat, lon)
     
-    fig, ax = plt.subplots(figsize=(14, 12))
-    
     ax.set_facecolor('white')
-    fig.patch.set_facecolor('white')
     
     all_lats = np.concatenate([coords_I[:, 0], coords_J[:, 0]])
     all_lons = np.concatenate([coords_I[:, 1], coords_J[:, 1]])
     
-    lat_margin = (all_lats.max() - all_lats.min()) * 0.15
-    lon_margin = (all_lons.max() - all_lons.min()) * 0.15
+    lat_margin = (all_lats.max() - all_lats.min()) * 0.25
+    lon_margin = (all_lons.max() - all_lons.min()) * 0.25
     
     ax.set_xlim(all_lons.min() - lon_margin, all_lons.max() + lon_margin)
     ax.set_ylim(all_lats.min() - lat_margin, all_lats.max() + lat_margin)
@@ -115,79 +118,85 @@ def plot_solution(data, opened_facilities, assignments, title="Optimization Resu
     
     # 2. Plot All Candidate Locations (Light gray = Not Built)
     ax.scatter(coords_I[:, 1], coords_I[:, 0], 
-               c=COLOR_LIGHT_GRAY, marker='s', s=120, 
+               c=COLOR_LIGHT_GRAY, marker='s', s=140, 
                label='Unused Candidate', edgecolors=COLOR_DARK_GRAY, linewidths=1.5, zorder=4)
 
     # 3. Plot Opened Command Centers (blue gradient by level)
+    cc_texts = []  # Collect texts for adjustText
     if len(opened_facilities) > 0:
         for idx in opened_facilities:
             level = facility_levels.get(idx, 'Medium') if facility_levels else 'Medium'
             cc_color = CC_COLORS.get(level, CC_COLORS['Medium'])
             
             ax.scatter(coords_I[idx, 1], coords_I[idx, 0], 
-                       c=cc_color, marker='s', s=200, 
+                       c=cc_color, marker='s', s=220, 
                        edgecolors=COLOR_WHITE, linewidths=2, zorder=6)
             
-            # Label with level and resources
-            level_short = level[0] if level else 'M'
-            text_color = COLOR_WHITE
-            
-            # Build label text
+            # Label only with robot/human counts using Unicode symbols
             if resources and idx in resources:
                 r = resources[idx].get('robot', 0)
                 h = resources[idx].get('human', 0)
-                label_text = f"CC-{idx}({level_short})\nR:{r} H:{h}"
-            else:
-                label_text = f"CC-{idx}({level_short})"
-            
-            ax.annotate(label_text, 
-                       xy=(coords_I[idx, 1], coords_I[idx, 0]),
-                       xytext=(0, 12), textcoords='offset points',
-                       fontsize=8, ha='center', fontweight='bold',
-                       color=text_color,
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor=cc_color, 
-                                edgecolor=COLOR_WHITE, alpha=0.95),
-                       zorder=7)
+                label_text = f"{ROBOT_ICON}{r} {HUMAN_ICON}{h}"
+                
+                txt = ax.text(coords_I[idx, 1], coords_I[idx, 0], label_text,
+                             fontsize=16, ha='center', va='bottom', fontweight='bold',
+                             color=COLOR_WHITE,
+                             bbox=dict(boxstyle='round,pad=0.3', facecolor=cc_color, 
+                                      edgecolor=COLOR_WHITE, alpha=0.95),
+                             zorder=7)
+                cc_texts.append(txt)
         
-        # Add legend entries for CC levels
-        ax.scatter([], [], c=CC_COLORS['High'], marker='s', s=100, label='High Level CC',
-                  edgecolors=COLOR_WHITE, linewidths=1.5)
-        ax.scatter([], [], c=CC_COLORS['Medium'], marker='s', s=100, label='Medium Level CC',
-                  edgecolors=COLOR_WHITE, linewidths=1.5)
-        ax.scatter([], [], c=CC_COLORS['Low'], marker='s', s=100, label='Low Level CC',
-                  edgecolors=COLOR_WHITE, linewidths=1.5)
+        # Adjust text positions to avoid overlaps (only for text-based labels)
+        if cc_texts:
+            adjust_text(cc_texts, ax=ax, 
+                       arrowprops=dict(arrowstyle='-', color='gray', lw=0.5),
+                       expand_points=(2, 2),
+                       force_points=(0.5, 0.5),
+                       force_text=(0.5, 0.5))
+        
+        # Add legend entries for CC levels (only if showing legend)
+        if show_legend:
+            ax.scatter([], [], c=CC_COLORS['High'], marker='s', s=100, label='High Level CC',
+                      edgecolors=COLOR_WHITE, linewidths=1.5)
+            ax.scatter([], [], c=CC_COLORS['Medium'], marker='s', s=100, label='Medium Level CC',
+                      edgecolors=COLOR_WHITE, linewidths=1.5)
+            ax.scatter([], [], c=CC_COLORS['Low'], marker='s', s=100, label='Low Level CC',
+                      edgecolors=COLOR_WHITE, linewidths=1.5)
 
-    # 4. Plot Demand Sites (circles, colored by criticality)
+    # 4. Plot Demand Sites (circles, colored by criticality, sized by demand)
+    # Normalize D_j values to 0-1 range for sizing
+    if 'D_j' in data:
+        d_values = np.array(data['D_j'])
+        d_min, d_max = d_values.min(), d_values.max()
+        if d_max > d_min:
+            d_normalized = (d_values - d_min) / (d_max - d_min)
+        else:
+            d_normalized = np.ones_like(d_values) * 0.5
+        # Scale to reasonable marker sizes (min: 40, max: 200)
+        sizes = 40 + d_normalized * 160
+    else:
+        sizes = np.ones(len(coords_J)) * 80
+    
     high_crit_j = [j for j in range(len(coords_J)) if get_site_criticality(j) == 'high']
     med_crit_j = [j for j in range(len(coords_J)) if get_site_criticality(j) == 'medium']
     low_crit_j = [j for j in range(len(coords_J)) if get_site_criticality(j) == 'low']
     
-    # Plot each group with different color
+    # Plot each group with different color and sized by demand
     if high_crit_j:
+        label = 'High-Critical Site' if show_legend else None
         ax.scatter(coords_J[high_crit_j, 1], coords_J[high_crit_j, 0], 
-                   c=SITE_COLORS['high'], marker='o', s=100, 
-                   label='High-Critical Site', alpha=0.9, edgecolors=COLOR_BLACK, linewidths=1.5, zorder=5)
+                   c=SITE_COLORS['high'], marker='o', s=sizes[high_crit_j], 
+                   label=label, alpha=0.9, edgecolors=COLOR_BLACK, linewidths=1.5, zorder=5)
     if med_crit_j:
+        label = 'Standard Site' if show_legend else None
         ax.scatter(coords_J[med_crit_j, 1], coords_J[med_crit_j, 0], 
-                   c=SITE_COLORS['medium'], marker='o', s=80, 
-                   label='Standard Site', alpha=0.9, edgecolors=COLOR_BLACK, linewidths=1.5, zorder=5)
+                   c=SITE_COLORS['medium'], marker='o', s=sizes[med_crit_j], 
+                   label=label, alpha=0.9, edgecolors=COLOR_BLACK, linewidths=1.5, zorder=5)
     if low_crit_j:
+        label = 'Low-Critical Site' if show_legend else None
         ax.scatter(coords_J[low_crit_j, 1], coords_J[low_crit_j, 0], 
-                   c=SITE_COLORS['low'], marker='o', s=60, 
-                   label='Low-Critical Site', alpha=0.9, edgecolors=COLOR_BLACK, linewidths=1.5, zorder=5)
-    
-    # 5. Add SCU demand labels on demand sites
-    if 'D_j' in data:
-        for j in range(len(coords_J)):
-            d = int(data['D_j'][j])
-            ax.annotate(f"{d}", 
-                       xy=(coords_J[j, 1], coords_J[j, 0]),
-                       xytext=(0, -12), textcoords='offset points',
-                       fontsize=7, ha='center', fontweight='bold',
-                       color=COLOR_BLACK,
-                       bbox=dict(boxstyle='round,pad=0.2', facecolor=COLOR_WHITE, 
-                                edgecolor=COLOR_DARK_GRAY, alpha=0.8),
-                       zorder=8)
+                   c=SITE_COLORS['low'], marker='o', s=sizes[low_crit_j], 
+                   label=label, alpha=0.9, edgecolors=COLOR_BLACK, linewidths=1.5, zorder=5)
 
     # 6. Add basemap with better fallback options
     try:
@@ -206,9 +215,10 @@ def plot_solution(data, opened_facilities, assignments, title="Optimization Resu
 
     ax.set_axis_off()
     
-    legend = ax.legend(loc='upper right', fontsize=10, framealpha=0.95)
-    legend.get_frame().set_facecolor(COLOR_WHITE)
-    legend.get_frame().set_edgecolor(COLOR_DARK_GRAY)
+    if show_legend:
+        legend = ax.legend(loc=legend_loc, fontsize=20, framealpha=0.95)
+        legend.get_frame().set_facecolor(COLOR_WHITE)
+        legend.get_frame().set_edgecolor(COLOR_DARK_GRAY)
     
     # Calculate total resources
     total_robots = 0
@@ -219,22 +229,125 @@ def plot_solution(data, opened_facilities, assignments, title="Optimization Resu
                 total_robots += resources[idx].get('robot', 0)
                 total_humans += resources[idx].get('human', 0)
     
-    # Add summary stats as text box
+    # Build stats text with method name at the top
     num_open = len(opened_facilities)
     num_sites = len(coords_J)
-    stats_text = (f"Open Facilities: {num_open}/{len(coords_I)}\n"
-                  f"Demand Sites: {num_sites}\n"
-                  f"Total Robots: {total_robots}\n"
-                  f"Total Humans: {total_humans}")
-    ax.text(0.02, 0.02, stats_text, transform=ax.transAxes, fontsize=10,
-           verticalalignment='bottom', horizontalalignment='left',
+    
+    # Create stats lines
+    stats_lines = []
+    if method_name:
+        stats_lines.append(f"Method: {method_name}")
+    stats_lines.append(f"Open Facilities: {num_open}/{len(coords_I)}")
+    stats_lines.append(f"Demand Sites: {num_sites}")
+    
+    # Add resource totals with icons
+    stats_lines.append(f"Total Robot ({ROBOT_ICON}): {total_robots}")
+    stats_lines.append(f"Total Human ({HUMAN_ICON}): {total_humans}")
+    
+    stats_text = "\n".join(stats_lines)
+    
+    x_pos = 0.02 if stats_position == 'left' else 0.98
+    ha_align = 'left' if stats_position == 'left' else 'right'
+    
+    ax.text(x_pos, 0.02, stats_text, transform=ax.transAxes, fontsize=20,
+           verticalalignment='bottom', horizontalalignment=ha_align,
            color=COLOR_BLACK,
            bbox=dict(boxstyle='round,pad=0.5', facecolor=COLOR_WHITE, 
                     edgecolor=COLOR_DARK_GRAY, alpha=0.95))
     
+    return total_robots, total_humans
+
+
+def plot_solution(data, opened_facilities, assignments, title="Optimization Result", 
+                  save_format="pdf", facility_levels=None, resources=None):
+    """
+    Visualize the location map and assignments on a geographic basemap.
+    
+    Args:
+        data: Dictionary containing coordinate and demand data
+        opened_facilities: List of opened facility indices (x_i = 1)
+        assignments: Mapping of demand site j to facility i (list format: assignments[j] = i)
+        title: Plot title string
+        save_format: Output format - 'pdf' (recommended for LaTeX) or 'png'
+        facility_levels: Optional dict mapping facility index to level
+        resources: Optional dict mapping facility index to {'robot': n, 'human': m}
+        
+    Returns:
+        str: Path to saved figure
+    """
+    fig, ax = plt.subplots(figsize=(14, 12))
+    fig.patch.set_facecolor('white')
+    
+    _draw_solution_on_axes(ax, data, opened_facilities, assignments,
+                          facility_levels, resources, show_legend=True,
+                          legend_loc='upper right', stats_position='left')
+    
     plt.tight_layout()
     
     filename_base = f"result_{title.replace(' ', '_').lower()}"
+    
+    if save_format.lower() == "pdf":
+        filename = f"{filename_base}.pdf"
+        filepath = FIGURES_DIR / filename
+        plt.savefig(filepath, format='pdf', bbox_inches='tight', 
+                   facecolor='white', dpi=150)
+        print(f"PDF visualization saved to: {filepath}")
+    else:
+        filename = f"{filename_base}.png"
+        filepath = FIGURES_DIR / filename
+        plt.savefig(filepath, format='png', bbox_inches='tight', 
+                   facecolor='white', dpi=300)
+        print(f"PNG visualization saved to: {filepath}")
+    
+    plt.close()
+    
+    return str(filepath)
+
+
+def plot_combined_solutions(data, exact_solution, heuristic_solution,
+                           scenario="Scenario", save_format="pdf"):
+    """
+    Visualize both exact and heuristic solutions side by side.
+    
+    Args:
+        data: Dictionary containing coordinate and demand data
+        exact_solution: Dict with 'opened', 'assignments', 'levels', 'resources' for exact method
+        heuristic_solution: Dict with same keys for heuristic method
+        scenario: Scenario name for the title
+        save_format: Output format - 'pdf' (recommended for LaTeX) or 'png'
+        
+    Returns:
+        str: Path to saved figure
+    """
+    fig, (ax_exact, ax_heuristic) = plt.subplots(1, 2, figsize=(24, 12))
+    fig.patch.set_facecolor('white')
+    
+    _draw_solution_on_axes(
+        ax_exact, data,
+        exact_solution['opened'],
+        exact_solution['assignments'],
+        exact_solution.get('levels'),
+        exact_solution.get('resources'),
+        show_legend=False,
+        stats_position='left',
+        method_name='Exact'
+    )
+    
+    _draw_solution_on_axes(
+        ax_heuristic, data,
+        heuristic_solution['opened'],
+        heuristic_solution['assignments'],
+        heuristic_solution.get('levels'),
+        heuristic_solution.get('resources'),
+        show_legend=True,
+        legend_loc='upper right',
+        stats_position='right',
+        method_name='Heuristic'
+    )
+    
+    plt.tight_layout()
+    
+    filename_base = f"result_{scenario.replace(' ', '_').lower()}_combined"
     
     if save_format.lower() == "pdf":
         filename = f"{filename_base}.pdf"

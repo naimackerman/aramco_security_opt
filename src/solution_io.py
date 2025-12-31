@@ -56,20 +56,17 @@ def _serialize_data(data: Dict) -> Dict:
         if isinstance(value, np.ndarray):
             serialized[key] = value.tolist()
         elif isinstance(value, dict):
-            # Handle nested dicts like t_ijl, F_il, C_ik, etc.
             nested = {}
             for k, v in value.items():
                 if isinstance(v, np.ndarray):
                     nested[k] = v.tolist()
                 elif isinstance(v, dict):
-                    # Double nested (e.g., MAXCAP_lk)
                     nested[k] = {kk: vv.tolist() if isinstance(vv, np.ndarray) else vv 
                                 for kk, vv in v.items()}
                 else:
                     nested[k] = v
             serialized[key] = nested
         elif isinstance(value, (list, tuple)):
-            # Handle list of tuples (coordinates)
             serialized[key] = [list(item) if isinstance(item, tuple) else item 
                               for item in value]
         else:
@@ -86,10 +83,8 @@ def _deserialize_data(data: Dict) -> Dict:
     """
     deserialized = {}
     
-    # Keys that should be numpy arrays
     numpy_keys = {'S_j', 'D_j', 'alpha_j', 'd_ij'}
     
-    # Keys that are dicts with numpy array values
     dict_numpy_keys = {'t_ijl', 'F_il', 'C_ik'}
     
     for key, value in data.items():
@@ -106,7 +101,6 @@ def _deserialize_data(data: Dict) -> Dict:
         elif key == 'd_ij' and isinstance(value, list):
             deserialized[key] = np.array(value)
         elif key in ('coords_I', 'coords_J') and isinstance(value, list):
-            # Convert coordinate lists back to tuples
             deserialized[key] = [tuple(coord) for coord in value]
         else:
             deserialized[key] = value
@@ -131,10 +125,8 @@ def _serialize_solution(solution: Dict) -> Dict:
     
     for key, value in solution.items():
         if key == 'levels':
-            # Convert integer keys to strings for JSON
             serialized[key] = {str(k): v for k, v in value.items()}
         elif key == 'resources':
-            # Convert integer keys to strings for JSON
             serialized[key] = {str(k): v for k, v in value.items()}
         else:
             serialized[key] = value
@@ -155,10 +147,8 @@ def _deserialize_solution(solution: Dict) -> Dict:
     
     for key, value in solution.items():
         if key == 'levels' and isinstance(value, dict):
-            # Convert string keys back to integers
             deserialized[key] = {int(k): v for k, v in value.items()}
         elif key == 'resources' and isinstance(value, dict):
-            # Convert string keys back to integers
             deserialized[key] = {int(k): v for k, v in value.items()}
         else:
             deserialized[key] = value
@@ -201,7 +191,6 @@ def save_solution(
     
     filepath = SOLUTIONS_DIR / filename
     
-    # Build save object
     save_obj = {
         'metadata': {
             'scenario': scenario,
@@ -347,6 +336,71 @@ def visualize_saved_solution(
     return figure_path
 
 
+def visualize_combined_solutions(
+    exact_filename: str,
+    heuristic_filename: str,
+    save_format: str = "pdf",
+    show: bool = False
+) -> str:
+    """
+    Load and visualize exact and heuristic solutions side by side.
+    
+    Args:
+        exact_filename: Filename of exact solution
+        heuristic_filename: Filename of heuristic solution
+        save_format: Output format ('pdf', 'png')
+        show: If True, display the plot interactively
+        
+    Returns:
+        Path to saved figure
+    """
+    from .visualization import plot_combined_solutions
+    import matplotlib.pyplot as plt
+    
+    data_exact, solution_exact, metadata_exact = load_solution(exact_filename)
+    data_heur, solution_heur, metadata_heur = load_solution(heuristic_filename)
+    
+    scenario = metadata_exact.get('scenario', 'Unknown')
+    
+    figure_path = plot_combined_solutions(
+        data=data_exact,
+        exact_solution=solution_exact,
+        heuristic_solution=solution_heur,
+        scenario=scenario,
+        save_format=save_format
+    )
+    
+    if show:
+        plt.show()
+    
+    return figure_path
+
+
+def find_matching_solutions(scenario: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Find the latest exact and heuristic solution files for a given scenario.
+    
+    Args:
+        scenario: Scenario name (e.g., 'Balanced', 'Conservative', 'Future')
+        
+    Returns:
+        Tuple of (exact_filename, heuristic_filename), None if not found
+    """
+    solutions = list_saved_solutions()
+    
+    exact_files = [s for s in solutions 
+                   if s['scenario'].lower() == scenario.lower() 
+                   and s['method'].lower() == 'exact']
+    heuristic_files = [s for s in solutions 
+                       if s['scenario'].lower() == scenario.lower() 
+                       and s['method'].lower() == 'heuristic']
+    
+    exact_file = exact_files[-1]['filename'] if exact_files else None
+    heuristic_file = heuristic_files[-1]['filename'] if heuristic_files else None
+    
+    return exact_file, heuristic_file
+
+
 def main():
     """Command-line interface for solution management."""
     import argparse
@@ -356,9 +410,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m src.solution_io --list                    List all saved solutions
-  python -m src.solution_io --load balanced_exact.json  Visualize a solution
+  python -m src.solution_io --list                        List all saved solutions
+  python -m src.solution_io --load balanced_exact.json    Visualize a solution
   python -m src.solution_io --load balanced_exact.json --format png
+  python -m src.solution_io --combined Balanced           Combined exact+heuristic view
+  python -m src.solution_io --combined-all                Combined view for all scenarios
   python -m src.solution_io --delete old_solution.json
         """
     )
@@ -373,6 +429,18 @@ Examples:
         '--load',
         type=str,
         help="Load and visualize a saved solution"
+    )
+    
+    parser.add_argument(
+        '--combined', '-c',
+        type=str,
+        help="Create combined exact+heuristic visualization for a scenario (e.g., 'Balanced')"
+    )
+    
+    parser.add_argument(
+        '--combined-all',
+        action='store_true',
+        help="Create combined visualizations for all scenarios with both exact and heuristic"
     )
     
     parser.add_argument(
@@ -422,6 +490,51 @@ Examples:
             show=args.show
         )
         print(f"Figure saved to: {figure_path}")
+    
+    elif args.combined:
+        scenario = args.combined
+        exact_file, heuristic_file = find_matching_solutions(scenario)
+        
+        if not exact_file:
+            print(f"Error: No exact solution found for scenario '{scenario}'")
+            return
+        if not heuristic_file:
+            print(f"Error: No heuristic solution found for scenario '{scenario}'")
+            return
+        
+        print(f"Creating combined visualization for {scenario}:")
+        print(f"  Exact: {exact_file}")
+        print(f"  Heuristic: {heuristic_file}")
+        
+        figure_path = visualize_combined_solutions(
+            exact_file,
+            heuristic_file,
+            save_format=args.format,
+            show=args.show
+        )
+        print(f"Figure saved to: {figure_path}")
+    
+    elif args.combined_all:
+        scenarios = ['Conservative', 'Balanced', 'Future']
+        
+        for scenario in scenarios:
+            exact_file, heuristic_file = find_matching_solutions(scenario)
+            
+            if not exact_file or not heuristic_file:
+                print(f"Skipping {scenario}: Missing {'exact' if not exact_file else 'heuristic'} solution")
+                continue
+            
+            print(f"\nCreating combined visualization for {scenario}:")
+            print(f"  Exact: {exact_file}")
+            print(f"  Heuristic: {heuristic_file}")
+            
+            figure_path = visualize_combined_solutions(
+                exact_file,
+                heuristic_file,
+                save_format=args.format,
+                show=args.show
+            )
+            print(f"  Figure saved to: {figure_path}")
     
     elif args.delete:
         delete_solution(args.delete)
