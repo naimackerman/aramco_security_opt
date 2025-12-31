@@ -22,8 +22,13 @@ Parameters:
 - S_j: SLA (maximum response time) for demand site j
 - MAXCAP_lk, MINCAP_lk: Capacity constraints
 """
+import os
+from dotenv import load_dotenv
 import gurobipy as gp
 from gurobipy import GRB
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def solve_exact(data):
@@ -35,8 +40,41 @@ def solve_exact(data):
         
     Returns:
         tuple: (objective_value, model) if optimal, (None, None) otherwise
+    
+    Environment Variables:
+        GUROBI_LICENSE_TYPE: 'wls' for Web License Service, 'file' for license file (default: 'file')
+        
+        For WLS license (GUROBI_LICENSE_TYPE='wls'):
+            GUROBI_LICENSE_ID: Your Gurobi license ID
+            GUROBI_WLSACCESSID: WLS access ID
+            GUROBI_WLSSECRET: WLS secret key
+        
+        For file license (GUROBI_LICENSE_TYPE='file' or unset):
+            GUROBI_LICENSE_FILE: Path to gurobi.lic file (optional, uses default location if not set)
     """
-    model = gp.Model("Aramco_Security_Location")
+    license_type = os.environ.get("GUROBI_LICENSE_TYPE", "file").lower()
+    
+    if license_type == "wls":
+        env = gp.Env(empty=True)
+        license_id = os.environ.get("GUROBI_LICENSE_ID")
+        wls_access_id = os.environ.get("GUROBI_WLSACCESSID")
+        wls_secret = os.environ.get("GUROBI_WLSSECRET")
+        
+        if license_id:
+            env.setParam("LicenseID", int(license_id))
+        if wls_access_id:
+            env.setParam("WLSAccessID", wls_access_id)
+        if wls_secret:
+            env.setParam("WLSSecret", wls_secret)
+        
+        env.start()
+        model = gp.Model("Aramco_Security_Location", env=env)
+    else:
+        license_file = os.environ.get("GUROBI_LICENSE_FILE")
+        if license_file:
+            os.environ["GRB_LICENSE_FILE"] = license_file
+        
+        model = gp.Model("Aramco_Security_Location")
     
     # Unpack data
     I = range(data['num_I'])
@@ -144,6 +182,10 @@ def solve_exact(data):
         (z_human[i] >= data['alpha'] * z_robot[i] for i in I), 
         name="Supervision"
     )
+
+    # Set parameters
+    model.setParam(GRB.Param.MIPGap, 0.01)
+    model.setParam(GRB.Param.TimeLimit, 60)
 
     # Solve the model
     model.optimize()

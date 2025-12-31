@@ -10,6 +10,11 @@ Usage:
     uv run python -m src.main -s Balanced        # Run single scenario
     uv run python -m src.main --heuristic-only   # Skip Gurobi solver
     uv run python -m src.main --verbose          # Show detailed progress
+    uv run python -m src.main --save-solutions   # Save solutions for later visualization
+
+To visualize saved solutions without re-running the solver:
+    uv run python -m src.solution_io --list      # List saved solutions
+    uv run python -m src.solution_io --load <filename>  # Visualize saved solution
 """
 import argparse
 import time
@@ -20,6 +25,7 @@ from .data_gen import DataGenerator
 from .exact_solver import solve_exact, extract_solution
 from .heuristic_solver import HeuristicSolver
 from .visualization import plot_solution
+from .solution_io import save_solution
 from .config import RESULTS_DIR
 import numpy as np
 import pandas as pd
@@ -44,6 +50,11 @@ Examples:
   uv run python -m src.main --heuristic-only        Skip Gurobi (no license needed)
   uv run python -m src.main --verbose               Show detailed search progress
   uv run python -m src.main --candidates 20 --sites 100  Custom problem size
+  uv run python -m src.main --save-solutions        Save solutions for later use
+
+To visualize saved solutions:
+  uv run python -m src.solution_io --list           List all saved solutions
+  uv run python -m src.solution_io --load <file>    Visualize a saved solution
         """
     )
     
@@ -119,6 +130,12 @@ Examples:
         '--real-data',
         action='store_true',
         help="Use real Saudi Aramco Dhahran location data instead of synthetic"
+    )
+    
+    parser.add_argument(
+        '--save-solutions',
+        action='store_true',
+        help="Save solutions to files for later visualization (without re-running solver)"
     )
     
     return parser.parse_args()
@@ -198,6 +215,23 @@ def run_experiment(args):
                             'human': sum(r['human'] for r in solution['resources'].values())
                         }
                     }
+                    
+                    # Save solution for later visualization
+                    if args.save_solutions:
+                        save_solution(
+                            data=data,
+                            solution=solution,
+                            scenario=sc,
+                            method='exact',
+                            cost=exact_cost,
+                            solve_time=exact_time,
+                            metadata={
+                                'num_candidates': args.candidates,
+                                'num_sites': args.sites,
+                                'seed': args.seed,
+                                'use_real_data': args.real_data
+                            }
+                        )
                 else:
                     print(f"{sc:<15} | {'Exact':<10} | {'INFEASIBLE':>15} | {exact_time:>10.3f} | {'N/A':>8} |")
                     scenario_result['exact'] = None
@@ -257,6 +291,24 @@ def run_experiment(args):
                     'human': sum(r['human'] for r in resources_heur.values())
                 }
             }
+            
+            # Save solution for later visualization
+            if args.save_solutions:
+                save_solution(
+                    data=data,
+                    solution=solution,
+                    scenario=sc,
+                    method='heuristic',
+                    cost=heur_cost,
+                    solve_time=heur_time,
+                    metadata={
+                        'num_candidates': args.candidates,
+                        'num_sites': args.sites,
+                        'seed': args.seed,
+                        'use_real_data': args.real_data,
+                        'gap_percent': gap
+                    }
+                )
         
         results.append(scenario_result)
         print("-" * 80)

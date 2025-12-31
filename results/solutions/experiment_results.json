@@ -3,7 +3,7 @@
     "scenario": "Conservative",
     "heuristic": {
       "cost": 734700.0,
-      "time": 6.986764192581177,
+      "time": 7.002241134643555,
       "facilities": [
         3,
         6,
@@ -100,7 +100,7 @@
     "scenario": "Balanced",
     "heuristic": {
       "cost": 652185.0,
-      "time": 6.305203914642334,
+      "time": 6.158377170562744,
       "facilities": [
         1,
         3,
@@ -197,7 +197,7 @@
     "scenario": "Future",
     "heuristic": {
       "cost": 537820.0,
-      "time": 6.504022836685181,
+      "time": 6.489912748336792,
       "facilities": [
         6,
         8,
