@@ -12,6 +12,7 @@ Usage:
     uv run python -m src.main --verbose          # Show detailed progress
     uv run python -m src.main --save-solutions   # Save solutions for later visualization
     uv run python -m src.main --candidates 20 --sites 100  Custom problem size
+    uv run python -m src.main --load-dataset <path>  # Load pre-generated dataset
 
 To visualize saved solutions without re-running the solver:
     uv run python -m src.solution_io --list      # List saved solutions
@@ -23,6 +24,7 @@ import json
 from pathlib import Path
 
 from .data_gen import DataGenerator
+from .large_scale_data_gen import LargeScaleDataGenerator
 from .exact_solver import solve_exact, extract_solution
 from .heuristic_solver import HeuristicSolver
 from .visualization import plot_solution
@@ -139,7 +141,121 @@ To visualize saved solutions:
         help="Save solutions to files for later visualization (without re-running solver)"
     )
     
+    parser.add_argument(
+        '--load-dataset',
+        type=str,
+        default=None,
+        metavar='PATH',
+        help="Load a pre-generated dataset file (from large_scale_data_gen). Overrides --candidates, --sites, --seed, and --real-data."
+    )
+    
     return parser.parse_args()
+
+
+def _generate_params_from_loaded_dataset(loaded_gen: LargeScaleDataGenerator, scenario: str = 'Balanced') -> dict:
+    """
+    Generate optimization parameters from a loaded dataset.
+    
+    This function converts the LargeScaleDataGenerator data format to the format
+    expected by the solvers (same as DataGenerator.generate_params()).
+    
+    Args:
+        loaded_gen: LargeScaleDataGenerator instance with loaded data
+        scenario: One of 'Conservative', 'Balanced', or 'Future'
+        
+    Returns:
+        dict: Complete parameter dictionary for optimization model
+    """
+    num_I = loaded_gen.num_I
+    num_J = loaded_gen.num_J
+    levels = loaded_gen.levels
+    
+    # 1. Base Fixed Cost (F_i): Location-based
+    base_F_i = np.array([25000 if i < num_I/2 else 20000 for i in range(num_I)])
+    
+    F_il = {}
+    for level in levels:
+        multiplier = loaded_gen.level_cost_multipliers[level]
+        F_il[level] = base_F_i * multiplier
+    
+    # 2. Variable Cost (C_ik): Cost per resource type per location
+    C_ik = {
+        'Robot': np.array([800 if i < num_I/2 else 750 for i in range(num_I)]),
+        'Human': np.array([3000 if i < num_I/2 else 2800 for i in range(num_I)])
+    }
+    
+    # 3. Capacity Parameters per resource type per LEVEL
+    MAXCAP_lk = {
+        'High': {'Robot': 240, 'Human': 40},
+        'Medium': {'Robot': 100, 'Human': 20},
+        'Low': {'Robot': 40, 'Human': 10}
+    }
+    MINCAP_lk = {
+        'High': {'Robot': 0, 'Human': 20},
+        'Medium': {'Robot': 0, 'Human': 10},
+        'Low': {'Robot': 0, 'Human': 5}
+    }
+    
+    # 4. Technology Scenario Settings
+    robot_cost_mult = 1.0
+    alpha_j_scaler = 1.0
+    
+    if scenario == 'Conservative':
+        alpha = 1/3.0
+        robot_cost_mult = 1.0
+        alpha_j_scaler = 1.0
+    elif scenario == 'Balanced':
+        alpha = 1/5.0
+        robot_cost_mult = 0.9
+        alpha_j_scaler = 0.75
+    elif scenario == 'Future':
+        alpha = 1/10.0
+        robot_cost_mult = 0.8
+        alpha_j_scaler = 0.50
+    else:
+        raise ValueError(f"Unknown scenario: {scenario}")
+    
+    # Apply scenario adjustments
+    C_ik['Robot'] = C_ik['Robot'] * robot_cost_mult
+    scenario_alpha_j = loaded_gen.alpha_j * alpha_j_scaler
+    
+    # 5. Response time matrix (t_ijl)
+    t_ijl = {}
+    for level in levels:
+        multiplier = loaded_gen.level_time_multipliers[level]
+        t_ijl[level] = loaded_gen.d_ij * multiplier
+    
+    return {
+        # Sets
+        'num_I': num_I,
+        'num_J': num_J,
+        'num_L': len(levels),
+        'levels': levels,
+        # Response time and SLA
+        't_ijl': t_ijl,
+        'S_j': loaded_gen.S_j,
+        'd_ij': loaded_gen.d_ij,
+        # Demand
+        'D_j': loaded_gen.D_j,
+        'alpha_j': scenario_alpha_j,
+        # Costs
+        'F_il': F_il,
+        'C_ik': C_ik,
+        # Capacity
+        'MAXCAP_lk': MAXCAP_lk,
+        'MINCAP_lk': MINCAP_lk,
+        # Technology / Supervision
+        'alpha': alpha,
+        'level_cost_multipliers': loaded_gen.level_cost_multipliers,
+        'level_time_multipliers': loaded_gen.level_time_multipliers,
+        # Coordinates for visualization
+        'coords_I': loaded_gen.I_coords,
+        'coords_J': loaded_gen.J_coords,
+        'corridors': loaded_gen.corridors if hasattr(loaded_gen, 'corridors') else [],
+        'names_I': [f"Candidate-{i}" for i in range(num_I)],
+        'names_J': [f"Demand-{j}" for j in range(num_J)],
+        'use_real_data': False
+    }
 
 
 def run_experiment(args):
@@ -149,14 +265,40 @@ def run_experiment(args):
     Args:
         args: Parsed command-line arguments
     """
-    # Setup Data Generator
-    gen = DataGenerator(
-        num_candidates=args.candidates, 
-        num_demand_sites=args.sites,
-        seed=args.seed,
-        use_real_data=args.real_data
-    )
-    gen.generate_locations()
+    # Data source selection
+    loaded_dataset = None
+    use_loaded_dataset = args.load_dataset is not None
+    
+    if use_loaded_dataset:
+        # Load pre-generated dataset
+        print(f"Loading dataset from: {args.load_dataset}")
+        loaded_gen = LargeScaleDataGenerator.load_dataset(args.load_dataset)
+        
+        # Compute distances if not already computed
+        if loaded_gen.d_ij is None:
+            print("Computing distance matrices (not included in dataset)...")
+            loaded_gen.compute_distances()
+        
+        loaded_dataset = loaded_gen
+        num_candidates = loaded_gen.num_I
+        num_sites = loaded_gen.num_J
+        seed = loaded_gen.seed
+        use_real_data = False # Always False if loading a pre-generated dataset
+        levels = loaded_gen.levels
+    else:
+        # Setup Data Generator (original behavior)
+        gen = DataGenerator(
+            num_candidates=args.candidates, 
+            num_demand_sites=args.sites,
+            seed=args.seed,
+            use_real_data=args.real_data
+        )
+        gen.generate_locations()
+        num_candidates = args.candidates
+        num_sites = args.sites
+        seed = args.seed
+        use_real_data = args.real_data
+        levels = gen.levels
     
     scenarios = args.scenarios
     run_exact = not args.heuristic_only
@@ -168,8 +310,10 @@ def run_experiment(args):
     print("=" * 80)
     print("Human-Robot Co-Dispatch Facility Location Problem (HRCD-FLP) Optimization")
     print("=" * 80)
-    print(f"Configuration: {args.candidates} candidates, {args.sites} demand sites, seed={args.seed}")
-    print(f"Facility Levels: {gen.levels}")
+    if use_loaded_dataset:
+        print(f"Dataset: {args.load_dataset}")
+    print(f"Configuration: {num_candidates} candidates, {num_sites} demand sites, seed={seed}")
+    print(f"Facility Levels: {levels}")
     print(f"Scenarios: {', '.join(scenarios)}")
     print(f"Solvers: {'Exact' if run_exact else ''}{' + ' if run_exact and run_heuristic else ''}{'Heuristic' if run_heuristic else ''}")
     print("=" * 80)
@@ -177,7 +321,12 @@ def run_experiment(args):
     print("-" * 80)
     
     for sc in scenarios:
-        data = gen.generate_params(scenario=sc)
+        # Generate scenario parameters based on data source
+        if use_loaded_dataset:
+            data = _generate_params_from_loaded_dataset(loaded_dataset, scenario=sc)
+        else:
+            data = gen.generate_params(scenario=sc)
+        
         scenario_result = {'scenario': sc}
         exact_cost = None
         
@@ -227,10 +376,11 @@ def run_experiment(args):
                             cost=exact_cost,
                             solve_time=exact_time,
                             metadata={
-                                'num_candidates': args.candidates,
-                                'num_sites': args.sites,
-                                'seed': args.seed,
-                                'use_real_data': args.real_data
+                                'num_candidates': num_candidates,
+                                'num_sites': num_sites,
+                                'seed': seed,
+                                'use_real_data': use_real_data,
+                                'loaded_dataset': args.load_dataset
                             }
                         )
                 else:
@@ -303,10 +453,11 @@ def run_experiment(args):
                     cost=heur_cost,
                     solve_time=heur_time,
                     metadata={
-                        'num_candidates': args.candidates,
-                        'num_sites': args.sites,
-                        'seed': args.seed,
-                        'use_real_data': args.real_data,
+                        'num_candidates': num_candidates,
+                        'num_sites': num_sites,
+                        'seed': seed,
+                        'use_real_data': use_real_data,
+                        'loaded_dataset': args.load_dataset,
                         'gap_percent': gap
                     }
                 )

@@ -145,6 +145,36 @@ uv run python -m src.solution_io --delete <filename>
 uv run python -m src.resource_visualization
 ```
 
+### Large-Scale Data Generation
+
+For generating synthetic datasets at high scale (thousands to tens of thousands of sites) without solving the optimization problem:
+
+```bash
+# Generate 100 candidates × 1,000 demand sites (quick test)
+uv run python -c "from src.large_scale_data_gen import generate_and_visualize; generate_and_visualize(100, 1000)"
+
+# Generate 1,000 candidates × 10,000 demand sites
+uv run python -c "from src.large_scale_data_gen import generate_and_visualize; generate_and_visualize(1000, 10000)"
+
+# Generate with distance matrices (slower, larger files)
+uv run python -c "from src.large_scale_data_gen import generate_and_visualize; generate_and_visualize(500, 5000, compute_distances=True)"
+
+# Run solver with a pre-generated dataset
+uv run python -m src.main --load-dataset results/datasets/dataset_I100_J1000_seed42.json.gz --heuristic-only -s Balanced
+```
+
+**Features:**
+- **Constant density scaling**: Area scales proportionally with √(total_sites) to maintain ~0.91 points/km² density
+- **Optimized for scale**: Uses vectorized Haversine formula instead of sequential geodesic calculations
+- **Batched processing**: Memory-efficient distance computation for very large datasets
+- **Data persistence**: Saves datasets as compressed JSON files for later use
+- **Visualization-only mode**: Generate and visualize data without solving the optimization problem
+- **Solver integration**: Use `--load-dataset` flag in main solver to use pre-generated data
+
+**Output files:**
+- `results/datasets/data_preview_I{n}_J{m}.png` - Visualization preview
+- `results/datasets/dataset_I{n}_J{m}_seed{s}.json.gz` - Compressed dataset file
+
 ## Output Files
 
 - `results/figures/*.pdf` - Network visualization plots (LaTeX-ready)
@@ -169,6 +199,7 @@ aramco_security_opt/
 │   ├── config.py                  # Path configuration
 │   ├── convert_figures_to_pdf.py  # PNG → PDF converter for LaTeX
 │   ├── data_gen.py                # Data generator (synthetic + real)
+│   ├── large_scale_data_gen.py    # High-scale data gen (thousands of sites)
 │   ├── exact_solver.py            # Gurobi MIP model
 │   ├── heuristic_solver.py        # Greedy + Local Search
 │   ├── main.py                    # CLI entry point
@@ -177,6 +208,7 @@ aramco_security_opt/
 │   └── visualization.py           # Network plot generation
 ├── data/                          # Real location data (JSON)
 ├── results/
+│   ├── datasets/                  # Generated large-scale datasets
 │   ├── figures/                   # Visualization outputs
 │   ├── solutions/                 # Experiment results
 │   └── saved_solutions/           # Saved solutions for re-visualization
