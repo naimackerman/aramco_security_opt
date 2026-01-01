@@ -105,6 +105,12 @@ uv run python -m src.main --candidates 20 --sites 100
 
 # Save solutions for later visualization
 uv run python -m src.main --save-solutions
+
+# Use large-scale data generator
+uv run python -m src.main --use-large-scale --candidates 100 --sites 1000 --heuristic-only
+
+# Load pre-generated dataset
+uv run python -m src.main --load-dataset results/datasets/dataset_I100_J1000_seed42.json.gz --heuristic-only
 ```
 
 ### CLI Options
@@ -112,7 +118,7 @@ uv run python -m src.main --save-solutions
 | Option                 | Description                                       |
 | :--------------------- | :------------------------------------------------ |
 | `-s, --scenarios`    | Scenarios to run (Conservative, Balanced, Future) |
-| `--real-data`        | Use real case study facility locations           |
+| `--real-data`        | Use real case study facility locations           |
 | `--heuristic-only`   | Skip Gurobi solver                                |
 | `--exact-only`       | Skip heuristic solver                             |
 | `-v, --verbose`      | Show detailed search progress                     |
@@ -123,6 +129,8 @@ uv run python -m src.main --save-solutions
 | `--no-plots`         | Skip visualizations                               |
 | `--save-solutions`   | Save solutions for later visualization            |
 | `--output FILE`      | Custom output filename for results JSON           |
+| `--use-large-scale`  | Use fast large-scale data generator (vectorized)  |
+| `--load-dataset PATH`| Load pre-generated dataset file                   |
 
 ### Solution Management
 
@@ -147,29 +155,42 @@ uv run python -m src.resource_visualization
 
 ### Large-Scale Data Generation
 
-For generating synthetic datasets at high scale (thousands to tens of thousands of sites) without solving the optimization problem:
+For generating and solving large-scale problems:
+
+**Method 1: Direct solving with large-scale generator (recommended)**
 
 ```bash
-# Generate 100 candidates × 1,000 demand sites (quick test)
+# Use --use-large-scale flag for fast generation + solving
+uv run python -m src.main --use-large-scale --candidates 100 --sites 1000 --heuristic-only -s Balanced
+
+# Large scale with reduced iterations for faster results
+uv run python -m src.main --use-large-scale --candidates 500 --sites 5000 --heuristic-only --max-iterations 20 --no-plots
+```
+
+**Method 2: Pre-generate dataset, then solve**
+
+```bash
+# Step 1: Generate and save dataset
 uv run python -c "from src.large_scale_data_gen import generate_and_visualize; generate_and_visualize(100, 1000)"
 
-# Generate 1,000 candidates × 10,000 demand sites
-uv run python -c "from src.large_scale_data_gen import generate_and_visualize; generate_and_visualize(1000, 10000)"
+# Step 2: Solve using saved dataset
+uv run python -m src.main --load-dataset results/datasets/dataset_I100_J1000_seed42.json.gz --heuristic-only
+```
 
-# Generate with distance matrices (slower, larger files)
+**Method 3: Generate with distance matrices (for repeated solving)**
+
+```bash
+# Generate with pre-computed distances (faster solving, larger file)
 uv run python -c "from src.large_scale_data_gen import generate_and_visualize; generate_and_visualize(500, 5000, compute_distances=True)"
-
-# Run solver with a pre-generated dataset
-uv run python -m src.main --load-dataset results/datasets/dataset_I100_J1000_seed42.json.gz --heuristic-only -s Balanced
 ```
 
 **Features:**
+- **Identical results**: Same seed produces identical results as original generator
 - **Constant density scaling**: Area scales proportionally with √(total_sites) to maintain ~0.91 points/km² density
-- **Optimized for scale**: Uses vectorized Haversine formula instead of sequential geodesic calculations
+- **Optimized for scale**: Uses vectorized Haversine formula
 - **Batched processing**: Memory-efficient distance computation for very large datasets
-- **Data persistence**: Saves datasets as compressed JSON files for later use
-- **Visualization-only mode**: Generate and visualize data without solving the optimization problem
-- **Solver integration**: Use `--load-dataset` flag in main solver to use pre-generated data
+- **Data persistence**: Saves datasets as compressed JSON files for reproducibility
+- **Solver integration**: Use `--use-large-scale` or `--load-dataset` flags in main solver
 
 **Output files:**
 - `results/datasets/data_preview_I{n}_J{m}.png` - Visualization preview

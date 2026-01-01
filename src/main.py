@@ -149,6 +149,12 @@ To visualize saved solutions:
         help="Load a pre-generated dataset file (from large_scale_data_gen). Overrides --candidates, --sites, --seed, and --real-data."
     )
     
+    parser.add_argument(
+        '--use-large-scale',
+        action='store_true',
+        help="Use the large-scale data generator (faster, supports larger datasets). Uses --candidates, --sites, and --seed."
+    )
+    
     return parser.parse_args()
 
 
@@ -268,6 +274,7 @@ def run_experiment(args):
     # Data source selection
     loaded_dataset = None
     use_loaded_dataset = args.load_dataset is not None
+    use_large_scale_gen = getattr(args, 'use_large_scale', False)
     
     if use_loaded_dataset:
         # Load pre-generated dataset
@@ -283,8 +290,28 @@ def run_experiment(args):
         num_candidates = loaded_gen.num_I
         num_sites = loaded_gen.num_J
         seed = loaded_gen.seed
-        use_real_data = False # Always False if loading a pre-generated dataset
+        use_real_data = False
         levels = loaded_gen.levels
+        data_source = 'loaded'
+    elif use_large_scale_gen:
+        # Use LargeScaleDataGenerator directly (fast, supports large datasets)
+        print(f"Using LargeScaleDataGenerator: {args.candidates} candidates, {args.sites} sites, seed={args.seed}")
+        loaded_gen = LargeScaleDataGenerator(
+            num_candidates=args.candidates,
+            num_demand_sites=args.sites,
+            seed=args.seed
+        )
+        loaded_gen.generate_locations()
+        loaded_gen.generate_demand_params()
+        loaded_gen.compute_distances()
+        
+        loaded_dataset = loaded_gen
+        num_candidates = args.candidates
+        num_sites = args.sites
+        seed = args.seed
+        use_real_data = False
+        levels = loaded_gen.levels
+        data_source = 'large_scale'
     else:
         # Setup Data Generator (original behavior)
         gen = DataGenerator(
@@ -299,6 +326,7 @@ def run_experiment(args):
         seed = args.seed
         use_real_data = args.real_data
         levels = gen.levels
+        data_source = 'original'
     
     scenarios = args.scenarios
     run_exact = not args.heuristic_only
@@ -322,7 +350,7 @@ def run_experiment(args):
     
     for sc in scenarios:
         # Generate scenario parameters based on data source
-        if use_loaded_dataset:
+        if loaded_dataset is not None:
             data = _generate_params_from_loaded_dataset(loaded_dataset, scenario=sc)
         else:
             data = gen.generate_params(scenario=sc)

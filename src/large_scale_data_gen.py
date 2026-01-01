@@ -2,13 +2,13 @@
 Large-Scale Synthetic Data Generator for HRCD-FLP Optimization.
 
 This module provides functionality to:
-1. Generate synthetic data at large scale (thousands to tens of thousands of sites)
+1. Generate synthetic data at large scale
 2. Save generated data to files for later use
-3. Visualize generated data WITHOUT solving the optimization problem
+3. Visualize generated data
 
 Optimizations for large scale:
 - Vectorized distance calculations using NumPy
-- Batched geodesic computations to reduce memory pressure
+- Haversine formula for fast distance calculations
 - Efficient storage using compressed JSON or Parquet format
 """
 import json
@@ -33,8 +33,7 @@ class LargeScaleDataGenerator:
     """
     High-performance data generator for large-scale HRCD-FLP instances.
     
-    Supports generation of thousands to tens of thousands of facility/demand sites
-    with optimized distance calculations and data persistence.
+    Supports generation of facility/demand sites with optimized distance calculations and data persistence.
     """
     
     def __init__(
@@ -49,11 +48,11 @@ class LargeScaleDataGenerator:
         Initialize the large-scale data generator.
         
         Args:
-            num_candidates: Number of candidate facility locations (supports up to 10,000+)
-            num_demand_sites: Number of demand sites (supports up to 100,000+)
+            num_candidates: Number of candidate facility locations
+            num_demand_sites: Number of demand sites
             seed: Random seed for reproducibility
             use_haversine: Use fast vectorized Haversine formula (True) or precise geodesic (False)
-            batch_size: Batch size for distance calculations (larger = faster but more memory)
+            batch_size: Batch size for distance calculations
         """
         np.random.seed(seed)
         self.seed = seed
@@ -67,7 +66,6 @@ class LargeScaleDataGenerator:
         self.center_lon = 50.13
         
         # Define spatial spread based on scale
-        # Larger datasets need larger area to avoid excessive density
         self._calculate_spatial_spread()
         
         self.levels = ['High', 'Medium', 'Low']
@@ -206,7 +204,7 @@ class LargeScaleDataGenerator:
             else:
                 d_ij = self._haversine_vectorized(I_lats, I_lons, J_lats, J_lons)
         else:
-            # Precise geodesic (slower)
+            # Precise geodesic
             print("  Computing distances using geodesic formula (this may take a while)...")
             from geopy.distance import geodesic
             
@@ -226,8 +224,17 @@ class LargeScaleDataGenerator:
         return d_ij
     
     def generate_locations(self):
-        """Generate candidate and demand site locations at scale."""
+        """
+        Generate candidate and demand site locations at scale.
+        
+        Uses the SAME algorithm as data_gen.py but with proportional scaling
+        to ensure identical results for the same seed when using the same parameters.
+        """
         print("\nGenerating locations...")
+        
+        # Calculate scale factor relative to reference (0.04 degrees for 15+50 sites)
+        reference_spread = 0.04
+        scale_factor = self.lat_spread / reference_spread
         
         # Generate candidate locations (uniformly distributed)
         print(f"  Generating {self.num_I:,} candidate locations...")
@@ -237,16 +244,25 @@ class LargeScaleDataGenerator:
         
         # Generate demand sites with corridor pattern
         print(f"  Generating {self.num_J:,} demand sites with corridor pattern...")
-        self._generate_corridor_pattern_large_scale()
+        self._generate_corridor_pattern_scaled(scale_factor)
         
         print(f"  Generated {len(self.I_coords):,} candidates, {len(self.J_coords):,} demand sites")
         
-    def _generate_corridor_pattern_large_scale(self):
+    def _generate_corridor_pattern_scaled(self, scale_factor: float):
         """
-        Generate demand sites in corridor/pipeline pattern at large scale.
-        Optimized for thousands to tens of thousands of sites.
+        Generate demand sites in corridor/pipeline pattern.
+        
+        This method uses the EXACT SAME algorithm as data_gen.py._generate_corridor_pattern()
+        but with all hardcoded distance values scaled by scale_factor.
+        
+        This ensures:
+        - Identical results when scale_factor = 1.0 (i.e., 15 candidates + 50 demand sites)
+        - Proportionally scaled results for larger datasets
+        
+        Args:
+            scale_factor: Ratio of current spread to reference spread
         """
-        # Split: 70% corridor sites, 30% scattered
+        # Split: 70% corridor sites, 30% scattered (same as data_gen.py)
         num_corridor_sites = int(self.num_J * 0.7)
         num_scattered = self.num_J - num_corridor_sites
         
@@ -254,10 +270,8 @@ class LargeScaleDataGenerator:
         demand_tiers = []
         self.corridors = []
         
-        # Adaptive number of corridors based on scale
-        # More sites = more corridors to maintain reasonable density
-        num_corridors = max(3, int(np.sqrt(num_corridor_sites / 10)))
-        num_corridors = min(num_corridors, 50)  # Cap at 50 corridors
+        # Number of corridors: same formula as data_gen.py
+        num_corridors = max(2, num_corridor_sites // 12)
         sites_per_corridor = num_corridor_sites // num_corridors
         
         print(f"  Creating {num_corridors} corridors with ~{sites_per_corridor} sites each...")
@@ -265,9 +279,9 @@ class LargeScaleDataGenerator:
         for c in range(num_corridors):
             corridor_sites = []
             
-            # Generate two hub endpoints for the corridor
+            # Generate two high-critical hub endpoints
             angle = 2 * np.pi * c / num_corridors + np.random.uniform(-0.3, 0.3)
-            radius = (self.lat_spread * 0.6) + np.random.uniform(0, self.lat_spread * 0.3)
+            radius = (0.025 + np.random.uniform(0, 0.015)) * scale_factor
             
             hub1_lat = self.center_lat + radius * np.cos(angle)
             hub1_lon = self.center_lon + radius * np.sin(angle)
@@ -277,34 +291,37 @@ class LargeScaleDataGenerator:
             
             corridor_points = []
             
-            # Hub endpoints (High tier)
+            # Hub 1 (High tier) at t=0
             corridor_points.append((0.0, hub1_lat, hub1_lon, 1))
-            corridor_points.append((1.0, hub2_lat, hub2_lon, 1))
             
-            # Intermediate points (Medium tier) at 1/3 and 2/3
-            t1, t2 = 0.33, 0.67
-            med1_lat = hub1_lat + t1 * (hub2_lat - hub1_lat) + np.random.uniform(-0.002, 0.002)
-            med1_lon = hub1_lon + t1 * (hub2_lon - hub1_lon) + np.random.uniform(-0.002, 0.002)
-            med2_lat = hub1_lat + t2 * (hub2_lat - hub1_lat) + np.random.uniform(-0.002, 0.002)
-            med2_lon = hub1_lon + t2 * (hub2_lon - hub1_lon) + np.random.uniform(-0.002, 0.002)
+            # Medium tier points at t=0.33 and t=0.67
+            t1 = 0.33
+            med1_lat = hub1_lat + t1 * (hub2_lat - hub1_lat) + np.random.uniform(-0.002, 0.002) * scale_factor
+            med1_lon = hub1_lon + t1 * (hub2_lon - hub1_lon) + np.random.uniform(-0.002, 0.002) * scale_factor
             corridor_points.append((t1, med1_lat, med1_lon, 2))
+            
+            t2 = 0.67
+            med2_lat = hub1_lat + t2 * (hub2_lat - hub1_lat) + np.random.uniform(-0.002, 0.002) * scale_factor
+            med2_lon = hub1_lon + t2 * (hub2_lon - hub1_lon) + np.random.uniform(-0.002, 0.002) * scale_factor
             corridor_points.append((t2, med2_lat, med2_lon, 2))
+            
+            # Hub 2 (High tier) at t=1
+            corridor_points.append((1.0, hub2_lat, hub2_lon, 1))
             
             # Fill remaining sites along corridor (Low tier)
             remaining = sites_per_corridor - 4
             for i in range(max(0, remaining)):
                 t = (i + 1) / (remaining + 1)
                 # Avoid overlap with medium tier points
-                if abs(t - 0.33) < 0.02:
-                    t = 0.33 - 0.03 if t < 0.33 else 0.33 + 0.03
-                if abs(t - 0.67) < 0.02:
-                    t = 0.67 - 0.03 if t < 0.67 else 0.67 + 0.03
-                t = max(0.02, min(0.98, t))
+                if abs(t - 0.33) < 0.03:
+                    t = 0.33 - 0.05 if t < 0.33 else 0.33 + 0.05
+                if abs(t - 0.67) < 0.03:
+                    t = 0.67 - 0.05 if t < 0.67 else 0.67 + 0.05
+                t = max(0.03, min(0.97, t))
                 
-                # Add small perpendicular offset for visual variety
-                perp_offset = np.random.uniform(-0.003, 0.003)
-                low_lat = hub1_lat + t * (hub2_lat - hub1_lat) + perp_offset
-                low_lon = hub1_lon + t * (hub2_lon - hub1_lon) + perp_offset
+                # No offset for low-tier sites
+                low_lat = hub1_lat + t * (hub2_lat - hub1_lat)
+                low_lon = hub1_lon + t * (hub2_lon - hub1_lon)
                 corridor_points.append((t, low_lat, low_lon, 3))
             
             # Sort by position along corridor
@@ -319,24 +336,21 @@ class LargeScaleDataGenerator:
             
             self.corridors.append(corridor_sites)
         
-        # Generate scattered sites (not part of corridors)
+        # Generate scattered sites
+        # Scale the spread: ±0.035 -> scaled
         print(f"  Generating {num_scattered:,} scattered demand sites...")
-        scattered_lats = self.center_lat + np.random.uniform(-self.lat_spread * 0.9, 
-                                                              self.lat_spread * 0.9, 
-                                                              num_scattered)
-        scattered_lons = self.center_lon + np.random.uniform(-self.lon_spread * 0.9, 
-                                                              self.lon_spread * 0.9, 
-                                                              num_scattered)
-        scattered_tiers = np.random.choice([1, 2, 3], size=num_scattered, p=[0.05, 0.25, 0.70])
-        
-        for lat, lon, tier in zip(scattered_lats, scattered_lons, scattered_tiers):
+        scattered_spread = 0.035 * scale_factor
+        for _ in range(num_scattered):
+            lat = self.center_lat + np.random.uniform(-scattered_spread, scattered_spread)
+            lon = self.center_lon + np.random.uniform(-scattered_spread, scattered_spread)
             demand_coords.append((lat, lon))
-            demand_tiers.append(tier)
+            demand_tiers.append(np.random.choice([1, 2, 3], p=[0.05, 0.25, 0.70]))
         
-        # Ensure we have exactly num_J sites
+        # Fill remaining if needed
+        fill_spread = 0.03 * scale_factor
         while len(demand_coords) < self.num_J:
-            lat = self.center_lat + np.random.uniform(-self.lat_spread * 0.8, self.lat_spread * 0.8)
-            lon = self.center_lon + np.random.uniform(-self.lon_spread * 0.8, self.lon_spread * 0.8)
+            lat = self.center_lat + np.random.uniform(-fill_spread, fill_spread)
+            lon = self.center_lon + np.random.uniform(-fill_spread, fill_spread)
             demand_coords.append((lat, lon))
             demand_tiers.append(np.random.choice([1, 2, 3], p=[0.1, 0.3, 0.6]))
         
@@ -345,34 +359,36 @@ class LargeScaleDataGenerator:
         self.J_tiers = demand_tiers[:self.num_J]
     
     def generate_demand_params(self):
-        """Generate demand parameters for each site: SLA, SCU demand, and human/robot mix."""
+        """
+        Generate demand parameters for each site: SLA, SCU demand, and human/robot mix.
+        
+        Uses the EXACT SAME sequential algorithm as data_gen.py._generate_demand_params()
+        to ensure identical results with the same seed.
+        """
         print("\nGenerating demand parameters...")
         
         # Tier-based parameters
         tier_sla = {1: 5.0, 2: 10.0, 3: 15.0}  # minutes
         tier_scu_range = {1: (15, 21), 2: (8, 15), 3: (3, 8)}  # SCU
         
-        # Vectorized generation
-        tiers = np.array(self.J_tiers)
+        # Generate SLA (deterministic based on tier, no random calls)
+        self.S_j = np.array([tier_sla.get(tier, 5.0) for tier in self.J_tiers])
         
-        # SLA
-        self.S_j = np.array([tier_sla.get(t, 10.0) for t in tiers])
+        # Generate D_j sequentially
+        self.D_j = np.array([np.random.randint(*tier_scu_range.get(tier, (5, 10))) 
+                            for tier in self.J_tiers])
         
-        # SCU Demand
-        self.D_j = np.zeros(self.num_J, dtype=int)
-        for tier, (low, high) in tier_scu_range.items():
-            mask = tiers == tier
-            self.D_j[mask] = np.random.randint(low, high, mask.sum())
-        
-        # Alpha (human/robot mix)
-        self.alpha_j = np.zeros(self.num_J)
-        mask_high = tiers == 1
-        mask_med = tiers == 2
-        mask_low = tiers == 3
-        
-        self.alpha_j[mask_high] = np.random.uniform(1.01, 2.0, mask_high.sum())
-        self.alpha_j[mask_med] = 1.0
-        self.alpha_j[mask_low] = np.random.uniform(0.1, 0.99, mask_low.sum())
+        # Generate alpha_j sequentially
+        alpha_values = []
+        for tier in self.J_tiers:
+            if tier == 1:
+                val = np.random.uniform(1.01, 2.0)
+            elif tier == 2:
+                val = 1.0
+            else:
+                val = np.random.uniform(0.1, 0.99)
+            alpha_values.append(val)
+        self.alpha_j = np.array(alpha_values)
         
         print(f"  SLA range: [{self.S_j.min():.1f}, {self.S_j.max():.1f}] minutes")
         print(f"  SCU range: [{self.D_j.min()}, {self.D_j.max()}]")
