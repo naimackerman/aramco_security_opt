@@ -5,6 +5,11 @@ Implements a two-stage approach:
 1. Constructive Greedy Heuristic for initial feasible solution
 2. Local Search Improvement (Shift, Swap, Drop/Open moves)
 
+Optimized for large-scale problems with:
+- Random sampling instead of exhaustive search
+- Early termination when no improvement
+- Cached lookups for performance
+
 Sets:
 - I: Candidate facility locations
 - J: Demand sites
@@ -17,10 +22,11 @@ Decision Variables:
 """
 import numpy as np
 import math
+import random
 
 
 class HeuristicSolver:
-    def __init__(self, data, max_iterations=100, verbose=False):
+    def __init__(self, data, max_iterations=100, verbose=False, sample_size=None):
         """
         Initialize the heuristic solver.
         
@@ -28,6 +34,7 @@ class HeuristicSolver:
             data: Dictionary containing all problem parameters
             max_iterations: Maximum local search iterations (default: 100)
             verbose: If True, print progress messages
+            sample_size: Number of candidates to sample in moves (None = auto-scale)
         """
         self.data = data
         self.num_I = data['num_I']
@@ -37,10 +44,47 @@ class HeuristicSolver:
         self.max_iterations = max_iterations
         self.verbose = verbose
         
+        # Auto-scale sample size based on problem size
+        if sample_size is None:
+            # For small problems, use exhaustive search
+            # For large problems, sample a subset
+            total = self.num_I + self.num_J
+            if total <= 100:
+                self.sample_size_j = self.num_J
+                self.sample_size_i = self.num_I
+            else:
+                # Sample sqrt of size, but at least 20 and at most 100
+                self.sample_size_j = min(100, max(20, int(np.sqrt(self.num_J) * 2)))
+                self.sample_size_i = min(50, max(10, int(np.sqrt(self.num_I) * 2)))
+        else:
+            self.sample_size_j = sample_size
+            self.sample_size_i = sample_size
+        
         # Solution state
         self.x = [None] * self.num_I
         self.assignments = [[] for _ in range(self.num_J)]
         self.resources = {i: {'human': 0, 'robot': 0} for i in range(self.num_I)}
+        
+        # Cached state
+        self._facility_sites_cache = None
+        self._cache_valid = False
+        
+        # Early termination
+        self.no_improvement_limit = 5
+
+    def _invalidate_cache(self):
+        """Mark cache as invalid after changes."""
+        self._cache_valid = False
+    
+    def _get_facility_sites_cached(self):
+        """Get or build cached facility->sites mapping."""
+        if not self._cache_valid:
+            self._facility_sites_cache = {i: [] for i in range(self.num_I)}
+            for j in range(self.num_J):
+                for i in self.assignments[j]:
+                    self._facility_sites_cache[i].append(j)
+            self._cache_valid = True
+        return self._facility_sites_cache
 
     def _can_serve(self, facility_idx, level, demand_site_idx):
         """
@@ -117,14 +161,16 @@ class HeuristicSolver:
 
     def _get_facility_sites(self, facility_idx):
         """Get list of demand site indices assigned to a facility."""
-        return [j for j in range(self.num_J) if facility_idx in self.assignments[j]]
+        cache = self._get_facility_sites_cached()
+        return cache[facility_idx]
 
     def _get_num_sites_at_facility(self, facility_idx):
         """Get number of sites assigned to a facility."""
-        return sum(1 for j in range(self.num_J) if facility_idx in self.assignments[j])
+        return len(self._get_facility_sites(facility_idx))
 
     def _update_facility_state(self):
         """Update resources state based on current assignments."""
+        self._invalidate_cache()
         for i in range(self.num_I):
             num_sites = self._get_num_sites_at_facility(i)
             if num_sites > 0 and self.x[i] is not None:
@@ -252,6 +298,7 @@ class HeuristicSolver:
                 if best_i not in self.assignments[j]:
                     self.assignments[j].append(best_i)
                 self.x[best_i] = best_level
+                self._invalidate_cache()
                 # Update resources
                 num_sites = self._get_num_sites_at_facility(best_i)
                 res = self.calculate_resource_mix(best_i, num_sites)
@@ -286,20 +333,17 @@ class HeuristicSolver:
         Calculate global total cost for current solution.
         """
         total_cost = 0
-        facility_sites_count = {i: 0 for i in range(self.num_I)}
+        cache = self._get_facility_sites_cached()
         
         # Check that each site has at least one assignment
         for j in range(self.num_J):
             if not self.assignments[j]:
                 return float('inf')
-            # Count each site for each facility serving it
-            for i in self.assignments[j]:
-                facility_sites_count[i] += 1
             
         for i in range(self.num_I):
-            num_sites = facility_sites_count[i]
+            num_sites = len(cache[i])
             if num_sites > 0 and self.x[i] is not None:
-                res = self.calculate_resource_mix(i, num_sites)
+                res = self.calculate_resource_mix(i, num_sites, site_indices=cache[i])
                 if res is None:
                     return float('inf')
                 r, h = res
@@ -321,17 +365,27 @@ class HeuristicSolver:
         return self._can_serve(facility_idx, self.x[facility_idx], demand_site_idx)
 
     def _shift_move(self):
-        """Shift Move: Try moving demand site j from current center to a different one."""
+        """
+        Shift Move: Try moving demand site j from current center to a different one.
+        Uses random sampling for large-scale efficiency.
+        """
         current_cost = self.calculate_total_cost()
         
-        for j in range(self.num_J):
+        sites_to_try = list(range(self.num_J))
+        if len(sites_to_try) > self.sample_size_j:
+            sites_to_try = random.sample(sites_to_try, self.sample_size_j)
+        
+        for j in sites_to_try:
             if not self.assignments[j]:
                 continue
             original_assignments = self.assignments[j].copy()
             original_i = original_assignments[0] if original_assignments else -1
-            original_level = self.x[original_i] if original_i >= 0 else None
             
-            for k in range(self.num_I):
+            facilities_to_try = list(range(self.num_I))
+            if len(facilities_to_try) > self.sample_size_i:
+                facilities_to_try = random.sample(facilities_to_try, self.sample_size_i)
+            
+            for k in facilities_to_try:
                 if k in original_assignments:
                     continue
                 
@@ -341,7 +395,6 @@ class HeuristicSolver:
                         feasible = self._get_feasible_levels(k, j)
                         if not feasible:
                             continue
-                        old_level = self.x[k]
                         self.x[k] = feasible[0]
                 else:
                     feasible = self._get_feasible_levels(k, j)
@@ -351,6 +404,7 @@ class HeuristicSolver:
                 
                 # Replace primary assignment with k
                 self.assignments[j] = [k]
+                self._invalidate_cache()
                 
                 self._optimize_facility_levels()
                 new_cost = self.calculate_total_cost()
@@ -363,22 +417,32 @@ class HeuristicSolver:
                     return True
                 else:
                     self.assignments[j] = original_assignments
+                    self._invalidate_cache()
                     self._optimize_facility_levels()
                     
         return False
 
     def _swap_move(self):
-        """Swap Move: Exchange assignments of two demand sites between two facilities."""
+        """
+        Swap Move: Exchange assignments of two demand sites between two facilities.
+        Uses random sampling for large-scale efficiency.
+        """
         current_cost = self.calculate_total_cost()
         
-        for j1 in range(self.num_J):
+        sites_to_try = list(range(self.num_J))
+        if len(sites_to_try) > self.sample_size_j:
+            sites_to_try = random.sample(sites_to_try, self.sample_size_j)
+        
+        for j1 in sites_to_try:
             if not self.assignments[j1]:
                 continue
             i1 = self.assignments[j1][0]
             
-            for j2 in range(j1 + 1, self.num_J):
-                if not self.assignments[j2]:
-                    continue
+            other_sites = [j for j in range(self.num_J) if j != j1 and self.assignments[j]]
+            if len(other_sites) > self.sample_size_j:
+                other_sites = random.sample(other_sites, self.sample_size_j)
+            
+            for j2 in other_sites:
                 i2 = self.assignments[j2][0]
                 
                 if i1 == i2:
@@ -405,6 +469,7 @@ class HeuristicSolver:
                 # Perform swap
                 self.assignments[j1] = [i2]
                 self.assignments[j2] = [i1]
+                self._invalidate_cache()
                 
                 self._optimize_facility_levels()
                 new_cost = self.calculate_total_cost()
@@ -418,6 +483,7 @@ class HeuristicSolver:
                 else:
                     self.assignments[j1] = orig1
                     self.assignments[j2] = orig2
+                    self._invalidate_cache()
                     self._optimize_facility_levels()
                     
         return False
@@ -478,6 +544,8 @@ class HeuristicSolver:
                     # Remove drop_i and add best_alt
                     self.assignments[j] = [best_alt]
             
+            self._invalidate_cache()
+            
             if redistribution_possible:
                 self.x[drop_i] = None
                 self._optimize_facility_levels()
@@ -494,6 +562,7 @@ class HeuristicSolver:
             for j in sites_at_i:
                 self.assignments[j] = original_assignments[j]
             self.x[drop_i] = original_level
+            self._invalidate_cache()
             self._optimize_facility_levels()
                     
         return False
@@ -503,6 +572,9 @@ class HeuristicSolver:
         current_cost = self.calculate_total_cost()
         
         closed_facilities = [i for i in range(self.num_I) if self.x[i] is None]
+        
+        if len(closed_facilities) > self.sample_size_i:
+            closed_facilities = random.sample(closed_facilities, self.sample_size_i)
         
         for new_i in closed_facilities:
             potential_sites = []
@@ -526,6 +598,8 @@ class HeuristicSolver:
                 original_assignments[j] = self.assignments[j].copy()
                 self.assignments[j] = [new_i]
             
+            self._invalidate_cache()
+            
             # Set level for new facility
             sites_for_new = list(original_assignments.keys())
             best_level = self._get_best_level_for_sites(new_i, sites_for_new)
@@ -545,6 +619,7 @@ class HeuristicSolver:
             for j, orig_list in original_assignments.items():
                 self.assignments[j] = orig_list
             self.x[new_i] = None
+            self._invalidate_cache()
             self._optimize_facility_levels()
                     
         return False
@@ -552,32 +627,44 @@ class HeuristicSolver:
     def local_search(self):
         """
         Stage 2: Local Search Improvement
+        
+        Optimized with:
+        - Random sampling for shift/swap moves
+        - Early termination when no improvement
         """
         if self.verbose:
             print("Stage 2: Local Search Improvement")
+            if self.num_I + self.num_J > 100:
+                print(f"  (Using sampling: {self.sample_size_j} sites, {self.sample_size_i} facilities per move)")
         
         iteration = 0
-        improving = True
+        no_improvement_count = 0
+        best_cost = self.calculate_total_cost()
         
-        while improving and iteration < self.max_iterations:
-            improving = False
+        while iteration < self.max_iterations:
             iteration += 1
+            improved = False
             
             if self._shift_move():
-                improving = True
-                continue
+                improved = True
+                no_improvement_count = 0
+            elif self._swap_move():
+                improved = True
+                no_improvement_count = 0
+            elif self._drop_move():
+                improved = True
+                no_improvement_count = 0
+            elif self._open_move():
+                improved = True
+                no_improvement_count = 0
+            else:
+                no_improvement_count += 1
             
-            if self._swap_move():
-                improving = True
-                continue
-            
-            if self._drop_move():
-                improving = True
-                continue
-            
-            if self._open_move():
-                improving = True
-                continue
+            # Early termination
+            if no_improvement_count >= self.no_improvement_limit:
+                if self.verbose:
+                    print(f"  Early termination: no improvement for {self.no_improvement_limit} iterations")
+                break
         
         final_cost = self.calculate_total_cost()
         
